@@ -1,5 +1,7 @@
 # 🏛️ VastuPlan AI
 
+🌟 **Live Demo:** [https://akshay48784-gif.github.io/](https://akshay48784-gif.github.io/)
+
 **VastuPlan AI** is an intelligent, web-based architectural floor plan generator that leverages the Google Gemini API to design residential layouts. It balances modern space utilization with traditional Vastu Shastra principles, generating proportional, data-driven blueprints directly in the browser.
 
 ## ✨ Features
@@ -15,18 +17,23 @@
 * **Frontend:** HTML5, CSS3 (Modern Dark UI), Vanilla JavaScript
 * **AI Engine:** Google Gemini API (`gemini-1.5-flash` / `gemini-2.0-flash`)
 * **Libraries:** `jsPDF` (for report generation)
+* **Hosting:** GitHub Pages
 
 ## 🚀 Getting Started
 
-### Prerequisites
+### Try it Online
+The easiest way to use VastuPlan AI is through the live web version:
+👉 **[Open VastuPlan AI](https://akshay48784-gif.github.io/)**
+
+**Prerequisites to use the app:**
 You will need a **Google Gemini API Key**.
 1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey).
 2. Sign in with your Google account.
 3. Click **Create API Key** and copy the generated key.
 
-### Installation
-Since this is a client-side application, no backend setup is required. 
+### Local Installation (For Developers)
+If you want to modify the code or run it locally:
 
 1. Clone the repository:
    ```bash
-   git clone [https://github.com/yourusername/vastuplan-ai.git](https://github.com/yourusername/vastuplan-ai.git)
+   git clone [https://github.com/akshay48784-gif/akshay48784-gif.github.io.git](https://github.com/akshay48784-gif/akshay48784-gif.github.io.git)
