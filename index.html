@@ -1,0 +1,2258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VastuPlan AI — Architectural Floor Plan Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --navy: #08111e;
+    --navy2: #0e1f35;
+    --blue: #112d4e;
+    --accent: #c9a84c;
+    --accent2: #e8c97a;
+    --white: #f0ece4;
+    --muted: #7a8fa6;
+    --grid: rgba(201,168,76,0.06);
+    --success: #4caf82;
+    --warn: #e07b3f;
+    --danger: #d94f4f;
+    --border: rgba(201,168,76,0.2);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--navy);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    background-image:
+      linear-gradient(rgba(201,168,76,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(201,168,76,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 40px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,17,30,0.9);
+    backdrop-filter: blur(10px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 38px; height: 38px;
+    background: var(--accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: var(--navy);
+  }
+  .logo-text { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--white); }
+  .logo-text span { color: var(--accent); }
+  .badge {
+    background: rgba(201,168,76,0.1); border: 1px solid var(--border);
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 11px; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    text-align: center;
+    padding: 60px 20px 40px;
+  }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(32px, 5vw, 58px);
+    line-height: 1.15;
+    margin-bottom: 16px;
+  }
+  .hero h1 em { color: var(--accent); font-style: normal; }
+  .hero p { color: var(--muted); font-size: 16px; max-width: 520px; margin: 0 auto 30px; line-height: 1.7; }
+  .steps-row {
+    display: flex; justify-content: center; gap: 0;
+    flex-wrap: wrap; margin: 0 auto; max-width: 700px;
+  }
+  .step {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--muted); font-family: 'Space Mono', monospace;
+    padding: 0 20px;
+  }
+  .step:not(:last-child)::after { content: '→'; color: var(--border); margin-left: 20px; }
+  .step-num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: var(--navy);
+    font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .main { display: flex; gap: 24px; padding: 0 30px 60px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── FORM PANEL ── */
+  .panel {
+    background: rgba(14,31,53,0.7);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    backdrop-filter: blur(8px);
+  }
+  .form-panel { width: 380px; flex-shrink: 0; }
+  .results-panel { flex: 1; min-width: 0; }
+
+  .panel-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px; color: var(--accent);
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .panel-title svg { opacity: 0.7; }
+
+  /* API Key */
+  .api-section {
+    background: rgba(201,168,76,0.06);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .api-section label { font-size: 11px; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; font-family: 'Space Mono', monospace; display: block; margin-bottom: 8px; }
+  .api-section input {
+    width: 100%; background: rgba(8,17,30,0.8);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; color: var(--white); font-size: 13px;
+    font-family: 'Space Mono', monospace; outline: none;
+    transition: border-color 0.2s;
+  }
+  .api-section input:focus { border-color: var(--accent); }
+  .api-note { font-size: 10px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .api-note a { color: var(--accent); text-decoration: none; }
+
+  /* Form fields */
+  .field { margin-bottom: 18px; }
+  .field label {
+    display: block; font-size: 11px; color: var(--muted);
+    letter-spacing: 1px; text-transform: uppercase;
+    font-family: 'Space Mono', monospace; margin-bottom: 8px;
+  }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    background: rgba(8,17,30,0.6);
+    border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 8px;
+    padding: 11px 14px;
+    color: var(--white); font-size: 14px; font-family: 'DM Sans', sans-serif;
+    outline: none; transition: border-color 0.2s;
+    appearance: none;
+  }
+  .field select { cursor: pointer; }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+  .field textarea { resize: vertical; min-height: 80px; }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* Checkbox group */
+  .check-group { display: flex; flex-direction: column; gap: 8px; }
+  .check-item {
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer; padding: 8px 12px;
+    border: 1px solid rgba(201,168,76,0.1);
+    border-radius: 8px; transition: all 0.2s;
+  }
+  .check-item:hover { border-color: var(--border); background: rgba(201,168,76,0.05); }
+  .check-item input[type=checkbox] { display: none; }
+  .check-box {
+    width: 16px; height: 16px; border-radius: 4px;
+    border: 1px solid var(--muted);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.2s;
+  }
+  .check-item input:checked ~ .check-box {
+    background: var(--accent); border-color: var(--accent);
+  }
+  .check-item input:checked ~ .check-box::after { content: '✓'; font-size: 10px; color: var(--navy); font-weight: 700; }
+  .check-label { font-size: 13px; color: var(--white); }
+
+  /* Generate button */
+  .btn-generate {
+    width: 100%; padding: 16px;
+    background: var(--accent);
+    border: none; border-radius: 12px;
+    color: var(--navy); font-size: 15px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: all 0.3s;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    margin-top: 8px; letter-spacing: 0.5px;
+  }
+  .btn-generate:hover { background: var(--accent2); transform: translateY(-1px); box-shadow: 0 8px 30px rgba(201,168,76,0.3); }
+  .btn-generate:active { transform: translateY(0); }
+  .btn-generate:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* ── LOADING ── */
+  .loading {
+    display: none; text-align: center; padding: 60px 20px;
+  }
+  .loading.active { display: block; }
+  .blueprint-anim {
+    width: 120px; height: 120px; margin: 0 auto 24px;
+    position: relative;
+  }
+  .blueprint-anim svg { animation: spin 2s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-family: 'Space Mono', monospace; font-size: 13px; color: var(--accent); }
+  .loading-sub { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .dots::after {
+    content: ''; animation: dots 1.5s infinite;
+  }
+  @keyframes dots {
+    0% { content: '.'; } 33% { content: '..'; } 66% { content: '...'; }
+  }
+
+  /* ── RESULTS ── */
+  .results { display: none; }
+  .results.active { display: block; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 10px 22px; font-size: 13px; cursor: pointer;
+    color: var(--muted); font-family: 'Space Mono', monospace;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: all 0.2s; letter-spacing: 0.5px;
+  }
+  .tab:hover { color: var(--white); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Floor plan canvas */
+  #planCanvas {
+    width: 100%; border-radius: 12px;
+    border: 1px solid var(--border);
+    background: #071018;
+    display: block;
+    cursor: crosshair;
+  }
+  .canvas-wrap { position: relative; }
+  .canvas-toolbar {
+    display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
+  }
+  .btn-sm {
+    padding: 7px 14px; border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(14,31,53,0.8);
+    color: var(--white); font-size: 12px;
+    cursor: pointer; transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-sm.primary { background: var(--accent); color: var(--navy); border-color: var(--accent); font-weight: 600; }
+  .btn-sm.primary:hover { background: var(--accent2); }
+
+  /* Legend */
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 3px; }
+
+  /* Room table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 14px;
+    font-family: 'Space Mono', monospace; font-size: 10px;
+    letter-spacing: 1px; text-transform: uppercase;
+    color: var(--muted); border-bottom: 1px solid var(--border);
+  }
+  td { padding: 12px 14px; border-bottom: 1px solid rgba(201,168,76,0.06); color: var(--white); }
+  tr:hover td { background: rgba(201,168,76,0.04); }
+  .vastu-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 12px; font-size: 11px;
+    font-family: 'Space Mono', monospace;
+  }
+  .vastu-ok { background: rgba(76,175,130,0.15); color: var(--success); }
+  .vastu-warn { background: rgba(224,123,63,0.15); color: var(--warn); }
+  .vastu-bad { background: rgba(217,79,79,0.15); color: var(--danger); }
+
+  /* Vastu panel */
+  .vastu-score-ring {
+    display: flex; align-items: center; gap: 24px;
+    background: rgba(8,17,30,0.6); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 24px; margin-bottom: 20px;
+  }
+  .ring-wrap { position: relative; width: 90px; height: 90px; flex-shrink: 0; }
+  .ring-wrap svg { transform: rotate(-90deg); }
+  .ring-score {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Playfair Display', serif; font-size: 26px; color: var(--accent);
+  }
+  .score-details h3 { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 4px; }
+  .score-details p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  .vastu-rules { display: flex; flex-direction: column; gap: 10px; }
+  .vastu-rule {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 12px 16px; border-radius: 10px; font-size: 13px;
+  }
+  .vastu-rule.ok { background: rgba(76,175,130,0.08); border: 1px solid rgba(76,175,130,0.2); }
+  .vastu-rule.warn { background: rgba(224,123,63,0.08); border: 1px solid rgba(224,123,63,0.2); }
+  .vastu-rule.bad { background: rgba(217,79,79,0.08); border: 1px solid rgba(217,79,79,0.2); }
+  .rule-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .rule-text { line-height: 1.5; }
+  .rule-text strong { display: block; margin-bottom: 2px; }
+
+  /* Summary cards */
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .summary-card {
+    background: rgba(8,17,30,0.6); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px;
+    text-align: center;
+  }
+  .summary-card .val { font-family: 'Playfair Display', serif; font-size: 26px; color: var(--accent); }
+  .summary-card .lbl { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: 'Space Mono', monospace; letter-spacing: 0.5px; }
+
+  /* Notes */
+  .notes-section { margin-top: 16px; }
+  .note-box {
+    background: rgba(8,17,30,0.5); border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0; padding: 14px 16px; margin-bottom: 10px;
+    font-size: 13px; line-height: 1.7; color: var(--muted);
+  }
+  .note-box strong { color: var(--white); display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; font-family: 'Space Mono', monospace; }
+
+  /* Compass */
+  .compass {
+    position: absolute; top: 14px; right: 14px;
+    width: 60px; height: 60px;
+    background: rgba(8,17,30,0.85);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Error */
+  .error-box {
+    background: rgba(217,79,79,0.1); border: 1px solid rgba(217,79,79,0.3);
+    border-radius: 10px; padding: 16px; margin-top: 12px;
+    font-size: 13px; color: #ef9090; line-height: 1.8; display: none;
+    white-space: pre-line;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center; padding: 80px 20px;
+    border: 1px dashed var(--border); border-radius: 16px;
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+  .empty-state h3 { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 8px; color: var(--muted); }
+  .empty-state p { font-size: 13px; color: var(--muted); opacity: 0.6; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .main { flex-direction: column; padding: 0 16px 40px; }
+    .form-panel { width: 100%; }
+    header { padding: 14px 20px; }
+    .hero { padding: 40px 16px 30px; }
+  }
+
+  /* Animations */
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.4s ease both; }
+
+  /* Scale label on canvas */
+  .scale-bar {
+    margin-top: 8px; display: flex; align-items: center; gap: 8px;
+    font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted);
+  }
+  .scale-line { width: 60px; height: 2px; background: var(--accent); position: relative; }
+  .scale-line::before, .scale-line::after { content: ''; width: 1px; height: 8px; background: var(--accent); position: absolute; top: -3px; }
+  .scale-line::after { right: 0; }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">V</div>
+    <div class="logo-text">Vastu<span>Plan</span> AI</div>
+  </div>
+  <div class="badge">Beta v2.0 FIXED</div>
+</header>
+
+<!-- ── HERO ── -->
+<div class="hero">
+  <h1>Intelligent <em>Architectural</em><br>Plan Generator</h1>
+  <p>Generate Vastu-compliant residential floor plans with AI — optimised for cross ventilation, natural light, and space utilisation.</p>
+  <div class="steps-row">
+    <div class="step"><div class="step-num">1</div> Enter Details</div>
+    <div class="step"><div class="step-num">2</div> AI Generates</div>
+    <div class="step"><div class="step-num">3</div> Review Plan</div>
+    <div class="step"><div class="step-num">4</div> Export PDF</div>
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div class="main">
+
+  <!-- FORM PANEL -->
+  <div class="panel form-panel">
+    <div class="panel-title">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      Project Details
+    </div>
+
+    <!-- API KEY -->
+    <div class="api-section">
+      <label>🔑 Groq API Key <span style="background:rgba(76,175,130,0.2);color:#4caf82;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px;">FREE</span></label>
+      <input type="password" id="apiKey" placeholder="gsk_..." />
+      <div class="api-note">
+        ✅ 100% Free — No credit card needed.<br>
+        Get FREE key: <a href="https://console.groq.com" target="_blank">console.groq.com</a> → Sign up free → API Keys → Create Key → Copy &amp; paste above.
+      </div>
+    </div>
+
+    <!-- PLOT SIZE -->
+    <div class="field">
+      <label>Plot Size</label>
+      <div class="row2">
+        <div>
+          <input type="number" id="plotW" placeholder="Width (ft)" value="40" min="10" max="500">
+        </div>
+        <div>
+          <input type="number" id="plotH" placeholder="Depth (ft)" value="60" min="10" max="500">
+        </div>
+      </div>
+    </div>
+
+    <!-- FLOORS -->
+    <div class="field">
+      <label>Number of Floors</label>
+      <select id="floors">
+        <option value="G">Ground Floor Only</option>
+        <option value="G+1" selected>G+1 (2 Floors)</option>
+        <option value="G+2">G+2 (3 Floors)</option>
+        <option value="G+3">G+3 (4 Floors)</option>
+      </select>
+    </div>
+
+    <!-- DRAWING SCALE -->
+    <div class="field">
+      <label>Drawing Scale</label>
+      <select id="drawingScale">
+        <option value="100">1:100 — Small plot / overview</option>
+        <option value="50" selected>1:50 — Standard residential</option>
+        <option value="25">1:25 — Detailed / large plot</option>
+      </select>
+    </div>
+
+    <!-- FAMILY -->
+    <div class="field">
+      <label>Family Members</label>
+      <div class="row2">
+        <div><input type="number" id="adults" placeholder="Adults" value="4" min="1" max="30"></div>
+        <div><input type="number" id="children" placeholder="Children" value="2" min="0" max="15"></div>
+      </div>
+    </div>
+
+    <!-- PLOT FACING -->
+    <div class="field">
+      <label>Plot Facing (Main Gate Direction)</label>
+      <select id="facing">
+        <option value="North">North — Highly Auspicious</option>
+        <option value="East">East — Excellent for Vastu</option>
+        <option value="South">South — Acceptable</option>
+        <option value="West">West — Acceptable</option>
+        <option value="Northeast">Northeast (Ishanya)</option>
+        <option value="Northwest">Northwest (Vayavya)</option>
+        <option value="Southeast">Southeast (Agneya)</option>
+        <option value="Southwest">Southwest — Avoid if possible</option>
+      </select>
+    </div>
+
+    <!-- BEDROOMS -->
+    <div class="field">
+      <label>Number of Bedrooms</label>
+      <select id="bedroomCount">
+        <option value="1">1 Bedroom (Bachelor/Studio)</option>
+        <option value="2">2 Bedrooms (Small family)</option>
+        <option value="3" selected>3 Bedrooms (Standard)</option>
+        <option value="4">4 Bedrooms (Large family)</option>
+        <option value="5">5 Bedrooms (Joint family)</option>
+      </select>
+    </div>
+
+    <!-- ROOMS NEEDED -->
+    <div class="field">
+      <label>Spaces Required</label>
+      <div class="check-group" id="roomChecks">
+        <label class="check-item"><input type="checkbox" value="Living Room" checked><div class="check-box"></div><span class="check-label">🛋 Living / Drawing Room</span></label>
+        <label class="check-item"><input type="checkbox" value="Dining Room" checked><div class="check-box"></div><span class="check-label">🍽 Dining Room</span></label>
+        <label class="check-item"><input type="checkbox" value="Kitchen" checked><div class="check-box"></div><span class="check-label">🍳 Kitchen</span></label>
+        <label class="check-item"><input type="checkbox" value="Verandah" checked><div class="check-box"></div><span class="check-label">🌿 Verandah (Front)</span></label>
+        <label class="check-item"><input type="checkbox" value="Porch"><div class="check-box"></div><span class="check-label">🏛 Porch / Portico</span></label>
+        <label class="check-item"><input type="checkbox" value="Puja Room" checked><div class="check-box"></div><span class="check-label">🪔 Puja / Mandir Room</span></label>
+        <label class="check-item"><input type="checkbox" value="Study Room"><div class="check-box"></div><span class="check-label">📚 Study / Home Office</span></label>
+        <label class="check-item"><input type="checkbox" value="Store Room"><div class="check-box"></div><span class="check-label">📦 Store Room / Utility</span></label>
+        <label class="check-item"><input type="checkbox" value="Garage"><div class="check-box"></div><span class="check-label">🚗 Garage / Car Parking</span></label>
+        <label class="check-item"><input type="checkbox" value="Servant Quarter"><div class="check-box"></div><span class="check-label">🏠 Servant Quarter</span></label>
+        <label class="check-item"><input type="checkbox" value="Garden / Courtyard"><div class="check-box"></div><span class="check-label">🌳 Garden / Courtyard</span></label>
+        <label class="check-item"><input type="checkbox" value="Terrace Garden"><div class="check-box"></div><span class="check-label">🌻 Terrace / Sit-out</span></label>
+        <label class="check-item"><input type="checkbox" value="Balcony"><div class="check-box"></div><span class="check-label">🌇 Balcony (upper floors)</span></label>
+        <label class="check-item"><input type="checkbox" value="Lift / Staircase" checked><div class="check-box"></div><span class="check-label">🪜 Staircase</span></label>
+      </div>
+    </div>
+
+    <!-- PRACTICAL REQUIREMENTS -->
+    <div class="field">
+      <label>Practical Requirements</label>
+      <div class="check-group">
+        <label class="check-item"><input type="checkbox" id="req_vastu" checked><div class="check-box"></div><span class="check-label">♾ Vastu Shastra compliance</span></label>
+        <label class="check-item"><input type="checkbox" id="req_ventilation" checked><div class="check-box"></div><span class="check-label">💨 Cross ventilation in all rooms</span></label>
+        <label class="check-item"><input type="checkbox" id="req_sunlight" checked><div class="check-box"></div><span class="check-label">☀️ Natural light in all rooms</span></label>
+        <label class="check-item"><input type="checkbox" id="req_privacy"><div class="check-box"></div><span class="check-label">🔒 Master bedroom privacy (away from entrance)</span></label>
+        <label class="check-item"><input type="checkbox" id="req_elderly"><div class="check-box"></div><span class="check-label">👴 Senior citizen friendly (ground floor bedroom)</span></label>
+        <label class="check-item"><input type="checkbox" id="req_accessible"><div class="check-box"></div><span class="check-label">♿ Wheelchair accessible passages (min 4ft)</span></label>
+        <label class="check-item"><input type="checkbox" id="req_rental"><div class="check-box"></div><span class="check-label">🏠 Rental unit on upper floor</span></label>
+        <label class="check-item"><input type="checkbox" id="req_solar"><div class="check-box"></div><span class="check-label">⚡ Solar panel provision on roof</span></label>
+        <label class="check-item"><input type="checkbox" id="req_rainwater"><div class="check-box"></div><span class="check-label">💧 Rainwater harvesting pit (NE)</span></label>
+        <label class="check-item"><input type="checkbox" id="req_homeshop"><div class="check-box"></div><span class="check-label">🏪 Home shop / clinic on ground floor</span></label>
+      </div>
+    </div>
+
+    <!-- SPECIAL NOTES -->
+    <div class="field">
+      <label>Additional Notes (Optional)</label>
+      <textarea id="special" placeholder="e.g. Joint family, pet area, swimming pool, home theatre, basement, underground tank location, existing tree to preserve..."></textarea>
+    </div>
+
+    <!-- VASTU STRICTNESS -->
+    <div class="field">
+      <label>Vastu Approach</label>
+      <select id="vastuLevel">
+        <option value="strict">Strict — Traditional Vastu only</option>
+        <option value="moderate" selected>Balanced — Vastu + Modern practicality</option>
+        <option value="basic">Flexible — Core Vastu guidelines only</option>
+        <option value="none">Modern — No Vastu (pure functional)</option>
+      </select>
+    </div>
+
+    <div id="errorBox" class="error-box"></div>
+
+    <button class="btn-generate" id="generateBtn" onclick="generatePlan()">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      Generate AI Floor Plan
+    </button>
+  </div>
+
+  <!-- RESULTS PANEL -->
+  <div class="panel results-panel" id="resultsPanel">
+
+    <!-- Empty state -->
+    <div class="empty-state" id="emptyState">
+      <div class="icon">📐</div>
+      <h3>Your plan will appear here</h3>
+      <p>Fill in the details on the left and click Generate</p>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading" id="loadingDiv">
+      <div class="blueprint-anim">
+        <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="60" cy="60" r="54" stroke="rgba(201,168,76,0.1)" stroke-width="3"/>
+          <circle cx="60" cy="60" r="54" stroke="url(#grad)" stroke-width="3" stroke-dasharray="120 220" stroke-linecap="round"/>
+          <defs><linearGradient id="grad" x1="0" y1="0" x2="120" y2="120"><stop stop-color="#c9a84c"/><stop offset="1" stop-color="#e8c97a" stop-opacity="0"/></linearGradient></defs>
+          <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="#c9a84c" font-size="22" font-family="serif">⌂</text>
+        </svg>
+      </div>
+      <div class="loading-text">Designing your floor plan<span class="dots"></span></div>
+      <div class="loading-sub">Applying Vastu principles · Optimising space · Checking ventilation</div>
+    </div>
+
+    <!-- Results -->
+    <div class="results" id="resultsDiv">
+      <div class="tabs">
+        <div class="tab active" onclick="showTab('plan')">📐 Floor Plan</div>
+        <div class="tab" onclick="showTab('rooms')">📋 Room Details</div>
+        <div class="tab" onclick="showTab('vastu')">🕉 Vastu Report</div>
+        <div class="tab" onclick="showTab('summary')">📊 Summary</div>
+      </div>
+
+      <!-- FLOOR PLAN TAB -->
+      <div class="tab-content active fade-in" id="tab-plan">
+        <div class="canvas-toolbar">
+          <button class="btn-sm" onclick="zoomIn()">🔍+ Zoom In</button>
+          <button class="btn-sm" onclick="zoomOut()">🔍− Zoom Out</button>
+          <button class="btn-sm" onclick="resetZoom()">↺ Reset</button>
+          <button class="btn-sm primary" onclick="exportPDF()">⬇ Export PDF</button>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="planCanvas" width="800" height="600"></canvas>
+          <div class="compass">
+            <svg width="40" height="40" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="19" stroke="#c9a84c" stroke-width="0.5" fill="none"/>
+              <text x="20" y="8" text-anchor="middle" fill="#c9a84c" font-size="7" font-family="monospace">N</text>
+              <text x="33" y="22" text-anchor="middle" fill="#7a8fa6" font-size="7" font-family="monospace">E</text>
+              <text x="20" y="34" text-anchor="middle" fill="#7a8fa6" font-size="7" font-family="monospace">S</text>
+              <text x="7" y="22" text-anchor="middle" fill="#7a8fa6" font-size="7" font-family="monospace">W</text>
+              <line x1="20" y1="12" x2="20" y2="20" stroke="#c9a84c" stroke-width="1.5"/>
+              <line x1="20" y1="28" x2="20" y2="20" stroke="#7a8fa6" stroke-width="1"/>
+            </svg>
+          </div>
+        </div>
+        <div class="scale-bar">
+          <div class="scale-line"></div>
+          <span id="scaleLabel">5 ft</span>
+        </div>
+        <div class="legend" id="legendDiv"></div>
+      </div>
+
+      <!-- ROOMS TAB -->
+      <div class="tab-content fade-in" id="tab-rooms">
+        <table id="roomTable">
+          <thead>
+            <tr>
+              <th>Room</th>
+              <th>Direction</th>
+              <th>Size (ft)</th>
+              <th>Area (sq ft)</th>
+              <th>Vastu</th>
+            </tr>
+          </thead>
+          <tbody id="roomTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- VASTU TAB -->
+      <div class="tab-content fade-in" id="tab-vastu">
+        <div class="vastu-score-ring" id="vastuScoreCard"></div>
+        <div class="vastu-rules" id="vastuRules"></div>
+      </div>
+
+      <!-- SUMMARY TAB -->
+      <div class="tab-content fade-in" id="tab-summary">
+        <div class="summary-grid" id="summaryGrid"></div>
+        <div class="notes-section" id="notesSection"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ──
+let planData = null;
+let zoom = 1;
+let canvasData = null;
+
+const ROOM_COLORS = {
+  'master bedroom': { fill: 'rgba(100,149,237,0.25)', stroke: '#6495ED' },
+  'bedroom': { fill: 'rgba(147,112,219,0.25)', stroke: '#9370DB' },
+  'living room': { fill: 'rgba(72,209,204,0.22)', stroke: '#48D1CC' },
+  'drawing room': { fill: 'rgba(72,209,204,0.22)', stroke: '#48D1CC' },
+  'dining room': { fill: 'rgba(255,165,0,0.2)', stroke: '#FFA500' },
+  'kitchen': { fill: 'rgba(255,99,71,0.22)', stroke: '#FF6347' },
+  'bathroom': { fill: 'rgba(173,216,230,0.22)', stroke: '#ADD8E6' },
+  'toilet': { fill: 'rgba(173,216,230,0.22)', stroke: '#ADD8E6' },
+  'puja': { fill: 'rgba(255,215,0,0.22)', stroke: '#FFD700' },
+  'mandir': { fill: 'rgba(255,215,0,0.22)', stroke: '#FFD700' },
+  'study': { fill: 'rgba(144,238,144,0.22)', stroke: '#90EE90' },
+  'store': { fill: 'rgba(128,128,128,0.22)', stroke: '#808080' },
+  'garage': { fill: 'rgba(169,169,169,0.22)', stroke: '#A9A9A9' },
+  'parking': { fill: 'rgba(169,169,169,0.22)', stroke: '#A9A9A9' },
+  'garden': { fill: 'rgba(34,139,34,0.22)', stroke: '#228B22' },
+  'courtyard': { fill: 'rgba(34,139,34,0.22)', stroke: '#228B22' },
+  'verandah': { fill: 'rgba(210,180,140,0.22)', stroke: '#D2B48C' },
+  'balcony': { fill: 'rgba(210,180,140,0.22)', stroke: '#D2B48C' },
+  'staircase': { fill: 'rgba(255,255,255,0.08)', stroke: '#ffffff44' },
+  'corridor': { fill: 'rgba(255,255,255,0.05)', stroke: '#ffffff33' },
+  'default': { fill: 'rgba(201,168,76,0.12)', stroke: '#c9a84c' }
+};
+
+function getRoomColor(name) {
+  const n = name.toLowerCase();
+  for (const [key, val] of Object.entries(ROOM_COLORS)) {
+    if (n.includes(key)) return val;
+  }
+  return ROOM_COLORS.default;
+}
+
+// ── TABS ──
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const ids = ['plan','rooms','vastu','summary'];
+    t.classList.toggle('active', ids[i] === id);
+  });
+  document.querySelectorAll('.tab-content').forEach((c,i) => {
+    const ids = ['plan','rooms','vastu','summary'];
+    c.classList.toggle('active', ids[i] === id);
+  });
+}
+
+// ── GENERATE ──
+async function generatePlan() {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!apiKey) { showError('Please enter your Groq API Key.\n\nGet free key at: console.groq.com'); return; }
+
+  const plotW = parseInt(document.getElementById('plotW').value) || 40;
+  const plotH = parseInt(document.getElementById('plotH').value) || 60;
+  const floorsVal = document.getElementById('floors').value;
+  const drawingScale = parseInt(document.getElementById('drawingScale').value) || 50;
+  const adults = parseInt(document.getElementById('adults').value) || 4;
+  const children = parseInt(document.getElementById('children').value) || 0;
+  const facing = document.getElementById('facing').value;
+  const vastuLevel = document.getElementById('vastuLevel').value;
+  const special = document.getElementById('special').value;
+  const bedroomCount = parseInt(document.getElementById('bedroomCount').value) || 3;
+
+  // Build bedroom list dynamically
+  const bedroomList = ['Master Bedroom'];
+  for (let i = 2; i <= bedroomCount; i++) bedroomList.push(`Bedroom ${i}`);
+
+  // Practical requirements
+  const practicalReqs = [];
+  if (document.getElementById('req_vastu')?.checked) practicalReqs.push('Vastu Shastra compliance');
+  if (document.getElementById('req_ventilation')?.checked) practicalReqs.push('Cross ventilation in every room');
+  if (document.getElementById('req_sunlight')?.checked) practicalReqs.push('Natural daylight in all rooms');
+  if (document.getElementById('req_privacy')?.checked) practicalReqs.push('Master bedroom away from entrance for privacy');
+  if (document.getElementById('req_elderly')?.checked) practicalReqs.push('Senior citizen: ground floor bedroom near toilet');
+  if (document.getElementById('req_accessible')?.checked) practicalReqs.push('Wheelchair accessible corridors min 4ft wide');
+  if (document.getElementById('req_rental')?.checked) practicalReqs.push('Separate rental unit on upper floor with own entrance');
+  if (document.getElementById('req_solar')?.checked) practicalReqs.push('Flat roof for solar panels on terrace');
+  if (document.getElementById('req_rainwater')?.checked) practicalReqs.push('Rainwater harvesting pit in NE corner');
+  if (document.getElementById('req_homeshop')?.checked) practicalReqs.push('Commercial space (shop/clinic) on ground floor near entrance');
+
+  const selectedSpaces = [...document.querySelectorAll('#roomChecks input:checked')].map(c => c.value);
+
+  // ═══════════════════════════════════════════════════
+  // WASHROOM LOGIC — Civil Engineering Standard Rules
+  // ═══════════════════════════════════════════════════
+  // Rule 1: Always minimum 1 washroom per floor that has bedrooms
+  // Rule 2: 1 bedroom → 1 attached washroom (no separate common needed)
+  // Rule 3: 2 bedrooms → 1 attached to master + 1 common washroom
+  // Rule 4: 3 bedrooms → 1 attached master + 1 common (+ attached to Bed2 if plot ≥ 30ft wide)
+  // Rule 5: 4-5 bedrooms → attached to master + attached to bed2/3 + 1 common
+  // Rule 6: Every floor with bedrooms MUST have at least 1 toilet
+  // Rule 7: Ground floor with no bedroom must still have 1 common toilet (guest use)
+  // Rule 8: Washroom min size: attached = 5×8ft, common = 4×7ft, half-bath = 4×5ft
+  // Vastu: Bathrooms in NW or SE. Never NE (sacred) or SW (master direction).
+  function getWashroomsForFloor(bedsOnThisFloor, totalBeds, plotW, isGroundFloor, hasLivingOnFloor) {
+    const washrooms = [];
+    const hasEnoughWidth = plotW >= 28;
+    const hasLargeWidth  = plotW >= 35;
+
+    if (bedsOnThisFloor.length === 0) {
+      // No bedrooms on this floor — add 1 common guest toilet on ground
+      if (isGroundFloor && hasLivingOnFloor) {
+        washrooms.push({ name: 'Common Toilet', type: 'common', size: '4×6ft', attachedTo: null });
+      }
+      return washrooms;
+    }
+
+    const hasMaster = bedsOnThisFloor.some(b => b.toLowerCase().includes('master'));
+
+    if (bedsOnThisFloor.length === 1) {
+      // Only 1 bedroom → 1 attached washroom directly
+      washrooms.push({ name: 'Attached Bathroom', type: 'attached', size: '5×8ft', attachedTo: bedsOnThisFloor[0] });
+    } else if (bedsOnThisFloor.length === 2) {
+      // 2 bedrooms → master gets attached, others share 1 common
+      if (hasMaster) {
+        washrooms.push({ name: 'Master Bathroom', type: 'attached', size: '5×8ft', attachedTo: 'Master Bedroom' });
+        washrooms.push({ name: 'Common Bathroom', type: 'common', size: '4×7ft', attachedTo: null });
+      } else {
+        washrooms.push({ name: 'Attached Bathroom', type: 'attached', size: '5×8ft', attachedTo: bedsOnThisFloor[0] });
+        washrooms.push({ name: 'Common Bathroom', type: 'common', size: '4×7ft', attachedTo: null });
+      }
+    } else if (bedsOnThisFloor.length === 3) {
+      // 3 bedrooms → master attached + common + optionally Bed2 attached
+      washrooms.push({ name: 'Master Bathroom', type: 'attached', size: '5×8ft', attachedTo: 'Master Bedroom' });
+      washrooms.push({ name: 'Common Bathroom', type: 'common', size: '4×7ft', attachedTo: null });
+      if (hasEnoughWidth) {
+        washrooms.push({ name: 'Bathroom 2', type: 'attached', size: '5×7ft', attachedTo: bedsOnThisFloor.find(b => !b.includes('Master')) || bedsOnThisFloor[1] });
+      }
+    } else {
+      // 4-5 bedrooms → master attached + attach to bed2 + attach to bed3 if large plot + 1 common
+      washrooms.push({ name: 'Master Bathroom', type: 'attached', size: '5×8ft', attachedTo: 'Master Bedroom' });
+      washrooms.push({ name: 'Common Bathroom', type: 'common', size: '4×7ft', attachedTo: null });
+      const others = bedsOnThisFloor.filter(b => !b.includes('Master'));
+      washrooms.push({ name: 'Bathroom 2', type: 'attached', size: '5×7ft', attachedTo: others[0] });
+      if (hasLargeWidth && others.length > 1) {
+        washrooms.push({ name: 'Bathroom 3', type: 'attached', size: '4×7ft', attachedTo: others[1] });
+      }
+    }
+    return washrooms;
+  }
+
+  const allRooms = [...bedroomList, ...selectedSpaces];
+  if (allRooms.length === 0) { showError('Please select at least one space.'); return; }
+
+  // Parse floors
+  const floorNumbers = floorsVal === 'G' ? ['Ground Floor'] :
+    floorsVal === 'G+1' ? ['Ground Floor','First Floor'] :
+    floorsVal === 'G+2' ? ['Ground Floor','First Floor','Second Floor'] :
+    ['Ground Floor','First Floor','Second Floor','Third Floor'];
+
+  hideError();
+  setLoading(true);
+
+  // Generate each floor separately
+  const allFloorData = [];
+  for (let fi = 0; fi < floorNumbers.length; fi++) {
+    const floorName = floorNumbers[fi];
+    const isGround = fi === 0;
+    const isTop = fi === floorNumbers.length - 1;
+
+    // Assign rooms to floors logically
+    let floorRooms = [];
+    if (isGround) {
+      floorRooms = [...bedroomList.slice(0, Math.ceil(bedroomCount/floorNumbers.length))];
+      floorRooms.push(...selectedSpaces.filter(r =>
+        ['Living Room','Dining Room','Kitchen','Verandah','Porch','Puja Room',
+         'Store Room','Garage','Servant Quarter','Garden / Courtyard','Lift / Staircase'].includes(r)
+      ));
+      if (practicalReqs.includes('Senior citizen: ground floor bedroom near toilet')) {
+        if (!floorRooms.includes('Master Bedroom')) floorRooms.unshift('Master Bedroom');
+      }
+    } else if (isTop) {
+      const bedsPerFloor = Math.ceil(bedroomCount/floorNumbers.length);
+      const startIdx = fi * bedsPerFloor;
+      floorRooms = [...bedroomList.slice(startIdx)];
+      floorRooms.push(...selectedSpaces.filter(r =>
+        ['Study Room','Balcony','Terrace Garden','Lift / Staircase'].includes(r)
+      ));
+    } else {
+      const bedsPerFloor = Math.ceil(bedroomCount/floorNumbers.length);
+      const startIdx = fi * bedsPerFloor;
+      floorRooms = [...bedroomList.slice(startIdx, startIdx + bedsPerFloor)];
+      floorRooms.push(...selectedSpaces.filter(r =>
+        ['Study Room','Balcony','Lift / Staircase'].includes(r)
+      ));
+    }
+    if (floorRooms.length === 0) floorRooms = ['Open Terrace'];
+
+    // ── INJECT WASHROOMS for this floor ──
+    const bedsOnFloor = floorRooms.filter(r =>
+      r.toLowerCase().includes('bedroom') || r.toLowerCase().includes('master')
+    );
+    const hasLiving = floorRooms.some(r => r.toLowerCase().includes('living'));
+    const washroomsForFloor = getWashroomsForFloor(bedsOnFloor, bedroomCount, plotW, isGround, hasLiving);
+    // Add washroom names to room list (not duplicating)
+    washroomsForFloor.forEach(w => {
+      if (!floorRooms.includes(w.name)) floorRooms.push(w.name);
+    });
+
+    const floorData = await generateFloor(
+      apiKey, plotW, plotH, floorName, fi, floorNumbers.length,
+      floorRooms, facing, vastuLevel, practicalReqs, special, drawingScale,
+      adults, children, washroomsForFloor
+    );
+    if (!floorData) return; // error already shown
+    floorData.floorName = floorName;
+    floorData.floorIndex = fi;
+    floorData.drawingScale = drawingScale;
+    allFloorData.push(floorData);
+
+    // Update loading text
+    document.querySelector('.loading-sub').textContent = `Floor ${fi+1}/${floorNumbers.length} done · ${floorName} complete`;
+  }
+
+  renderMultiFloor(allFloorData);
+}
+
+async function generateFloor(apiKey, plotW, plotH, floorName, floorIdx, totalFloors, floorRooms, facing, vastuLevel, practicalReqs, special, drawingScale, adults, children, washroomPlan=[]) {
+
+  // Wall constants
+  const OW = 0.75; // outer wall 9"
+  const IW = 0.42; // internal wall 5"
+  const pw = plotW;
+  const ph = plotH;
+  const interiorW = pw - (2 * OW);
+  const interiorH = ph - (2 * OW);
+
+  // Vastu rules based on strictness
+  const vastuRules = vastuLevel === 'none' ? 'No Vastu constraints. Use pure functional layout.' :
+    vastuLevel === 'strict' ? `STRICT VASTU: Puja=NE corner, Kitchen=SE only, Master Bed=SW only, Living=N/NE, Bathrooms=NW/SE only, no room in Brahmasthan center.` :
+    vastuLevel === 'moderate' ? `BALANCED VASTU: Prefer Puja in NE, Kitchen in SE/NW, Master Bed in SW/S, Living in N/E. Minor deviations allowed for practicality.` :
+    `FLEXIBLE VASTU: Follow basic Vastu spirit. Kitchen avoid NE. Puja prefer NE. Other rooms as practical.`;
+
+  const isGround = floorIdx === 0;
+  const prompt = `You are a licensed residential architect. Generate floor plan for: ${floorName} of ${totalFloors}-floor building.
+
+BUILDING: ${plotW}ft × ${plotH}ft plot | Drawing Scale 1:${drawingScale}
+FLOOR: ${floorName} (Floor ${floorIdx+1} of ${totalFloors})
+OCCUPANTS: ${adults} adults, ${children} children
+PLOT FACING: ${facing}
+VASTU: ${vastuRules}
+
+ROOMS FOR THIS FLOOR ONLY: ${floorRooms.join(', ')}
+
+WASHROOM PLACEMENT RULES (CRITICAL — follow civil engineering standards):
+${washroomPlan.length > 0 ? `
+WASHROOMS FOR THIS FLOOR:
+${washroomPlan.map(w => {
+  if (w.type === 'attached' && w.attachedTo) {
+    return `- "${w.name}" (${w.size}): MUST be directly ADJACENT to "${w.attachedTo}" — share a common wall. Place it on the side or rear of that bedroom. Entry door from INSIDE the bedroom only.`;
+  } else {
+    return `- "${w.name}" (${w.size}): Common washroom accessible from corridor/passage. NOT inside any bedroom. Place near NW or SE as per Vastu.`;
+  }
+}).join('\n')}
+
+ATTACHED BATHROOM GEOMETRY RULES:
+- An attached bathroom shares EXACTLY ONE wall with its bedroom
+- Bathroom x,y must start at the bedroom boundary (same x or same y)
+- If bedroom is at x=2, w=14 → attached bath x=16 (right side) OR x=2 (left, inside bedroom)
+- Bathroom dimensions: width 5-6ft, depth 7-9ft
+- The bathroom door opens INTO the bedroom (not to corridor)
+- Total bedroom+bathroom block width = bedroom_w + bath_w (side by side) OR bedroom is split
+
+COMMON BATHROOM GEOMETRY RULES:
+- Place on NW corner (x near plotWidth) or SE corner for Vastu
+- Must be accessible from main corridor
+- Door opens to corridor/passage
+- Minimum 4ft × 7ft interior clear
+` : 'Add at least 1 common bathroom (4×7ft) accessible from corridor.'}
+PRACTICAL REQUIREMENTS: ${practicalReqs.length ? practicalReqs.join('; ') : 'Standard layout'}
+SPECIAL NOTES: ${special || 'None'}
+
+CRITICAL STRUCTURAL RULES:
+1. Outer walls = 9" (0.75ft). Interior starts at x=0.75, y=0.75
+2. Internal partition walls = 5" (0.42ft) shared between adjacent rooms
+3. Rooms MUST SHARE WALLS — no floating boxes. Adjacent rooms share the same wall line.
+4. All rooms tile together like a jigsaw — every room touches at least one other room
+5. Total covered area should be 85-95% of plot (${Math.round(pw*ph*0.85)}-${Math.round(pw*ph*0.95)} sqft)
+6. Staircase: min 10ft × 8ft, place on South or West side
+7. Corridor/Passage: 4ft wide minimum connecting all rooms
+8. Verandah/Porch: along the facing wall (${facing} side)
+
+ROOM SIZE GUIDE for ${plotW}×${plotH}ft plot (Scale 1:${drawingScale}):
+- Master Bedroom: ${Math.max(12,Math.round(pw*0.3))}×${Math.max(11,Math.round(ph*0.2))}ft min
+- Bedroom: ${Math.max(10,Math.round(pw*0.25))}×${Math.max(10,Math.round(ph*0.18))}ft min
+- Living Room: ${Math.max(14,Math.round(pw*0.35))}×${Math.max(12,Math.round(ph*0.2))}ft min
+- Kitchen: ${Math.max(10,Math.round(pw*0.22))}×${Math.max(8,Math.round(ph*0.15))}ft min
+- Dining: ${Math.max(10,Math.round(pw*0.22))}×${Math.max(9,Math.round(ph*0.16))}ft min
+- Master Bathroom (attached): 6×8ft clear interior — directly adjacent to Master Bedroom, share one wall
+- Attached Bathroom: 5×8ft or 5×7ft — directly adjacent to bedroom, share one wall, door opens inside bedroom
+- Common Bathroom: 4×7ft — in corridor/passage area, door faces passage, Vastu: NW or SE
+- Half-bath/Toilet: 4×5ft minimum — near common areas if needed
+- RULE: Every bedroom ≥10ft wide can have its own attached bathroom on its side wall
+- RULE: Attached bath x-coordinate = bedroom x + bedroom w (if placed to right) or bedroom x - bath_w (if left)
+- Verandah: full width × 6ft deep along facing wall
+- Porch/Portico: 12×10ft near main entrance
+- Staircase: 10×8ft
+- Corridor: 4ft wide
+
+LAYOUT ALGORITHM — follow this grid precisely for ${plotW}×${plotH}:
+${isGround ? `
+GROUND FLOOR ZONES:
+- Zone A (y=0.75 to ${Math.round(ph*0.15)}ft): Verandah/Porch along ${facing} side
+- Zone B (y=${Math.round(ph*0.15)} to ${Math.round(ph*0.45)}ft): Living, Puja, Kitchen arranged side by side
+- Zone C (y=${Math.round(ph*0.45)} to ${Math.round(ph*0.72)}ft): Dining, Bedrooms, Study side by side  
+- Zone D (y=${Math.round(ph*0.72)} to ${Math.round(ph-0.75)}ft): Master Bedroom, Store, Staircase side by side` : `
+UPPER FLOOR ZONES:
+- Zone A (y=0.75 to ${Math.round(ph*0.12)}ft): Balcony/Landing along ${facing} side
+- Zone B (y=${Math.round(ph*0.12)} to ${Math.round(ph*0.55)}ft): Bedrooms arranged side by side  
+- Zone C (y=${Math.round(ph*0.55)} to ${Math.round(ph-0.75)}ft): Remaining bedrooms, Study, Terrace`}
+
+ROOM PLACEMENT MATH — rooms sit next to each other:
+Example for 3 rooms in Zone B (width ${Math.round(interiorW)}ft):
+  Room1: x=0.75, w=${Math.round(interiorW/3)}
+  Room2: x=${Math.round(0.75 + interiorW/3 + IW)}, w=${Math.round(interiorW/3)}
+  Room3: x=${Math.round(0.75 + 2*(interiorW/3 + IW))}, w=${Math.round(interiorW - 2*(interiorW/3 + IW))}
+
+Return ONLY valid JSON (no text outside):
+{
+  "plotWidth": ${plotW},
+  "plotDepth": ${plotH},
+  "floorName": "${floorName}",
+  "outerWall": 0.75,
+  "innerWall": 0.42,
+  "drawingScale": ${drawingScale},
+  "facing": "${facing}",
+  "totalBuildUpArea": <integer sqft>,
+  "rooms": [
+    {
+      "name": "Verandah",
+      "x": 0.75,
+      "y": 0.75,
+      "w": ${Math.round(interiorW)},
+      "h": 6,
+      "direction": "${facing}",
+      "type": "semi-open",
+      "vastuCompliant": true,
+      "vastuNote": "Verandah on ${facing} facing — correct entry"
+    }
+  ],
+  "vastuScore": <integer 60-95>,
+  "vastuSummary": "<practical 2-sentence summary — not too strict>",
+  "vastuRules": [
+    {"rule": "<rule name>", "status": "ok", "detail": "<practical explanation>"}
+  ],
+  "ventilationNotes": "<specific cross ventilation strategy>",
+  "lightingNotes": "<specific natural light strategy>",
+  "spaceNotes": "<space efficiency notes>",
+  "recommendations": ["<practical tip 1>", "<practical tip 2>", "<practical tip 3>"]
+}
+
+VERIFY BEFORE RETURNING:
+✓ All rooms x+w <= ${(pw-0.75).toFixed(2)} (inside outer wall)
+✓ All rooms y+h <= ${(ph-0.75).toFixed(2)} (inside outer wall)  
+✓ Adjacent rooms share walls (room1.x+room1.w+0.42 = room2.x)
+✓ No gaps between rooms in same zone
+✓ Total area covers 85%+ of plot
+✓ All values are numbers not strings`;
+
+    // Using Groq API - Free, no quota, ultra fast (Llama 3.3 70B)
+  document.querySelector('.loading-sub').textContent = 'Generating your Vastu floor plan · Please wait...';
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert Vastu-compliant residential architect. Always respond with valid JSON only. No explanations, no markdown, no code blocks. Just pure JSON starting with { and ending with }.'
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 4000
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      const msg = err.error?.message || `API Error ${response.status}`;
+      if (response.status === 401) throw new Error('❌ Invalid Groq API Key.\n\nGet free key:\n1. Go to console.groq.com\n2. Sign up with Gmail\n3. Click API Keys → Create API Key\n4. Copy and paste here');
+      if (response.status === 429) throw new Error('⏳ Rate limit. Wait 10 seconds and try again.');
+      throw new Error('API Error: ' + msg);
+    }
+
+    const data = await response.json();
+    if (!data.choices?.[0]?.message?.content) throw new Error('Empty response. Please try again.');
+
+    let text = data.choices[0].message.content;
+    text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const jsonStart = text.indexOf('{');
+    const jsonEnd = text.lastIndexOf('}');
+    if (jsonStart === -1) throw new Error('Invalid response. Please try again.');
+    text = text.slice(jsonStart, jsonEnd + 1);
+
+    planData = JSON.parse(text);
+    return planData;
+
+  } catch (e) {
+    setLoading(false);
+    if (e.name === 'TypeError' || e.message.toLowerCase().includes('failed to fetch')) {
+      showError('\u26a0\ufe0f Connection blocked!\n\nOpen from: akshay48784-gif.github.io/vastuplan');
+    } else {
+      showError(e.message || 'Unknown error. Please try again.');
+    }
+    return null;
+  }
+}
+
+// ── MULTI-FLOOR RENDER ──
+function renderMultiFloor(allFloors) {
+  setLoading(false);
+  if (!allFloors || allFloors.length === 0) return;
+  window.allFloorData = allFloors;
+  window.currentFloorIdx = 0;
+  planData = allFloors[0];
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('resultsDiv').classList.add('active');
+  // Floor switcher buttons
+  let sw = document.getElementById('floorSwitcher');
+  if (!sw) {
+    sw = document.createElement('div');
+    sw.id = 'floorSwitcher';
+    sw.style.cssText = 'display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;';
+    const wrap = document.getElementById('planCanvas').parentElement;
+    wrap.insertBefore(sw, wrap.firstChild);
+  }
+  sw.innerHTML = allFloors.map((fd,i) =>
+    `<button onclick="switchFloor(${i})" id="floorBtn${i}" style="padding:7px 16px;border-radius:8px;border:1.5px solid ${i===0?'#c9a84c':'#2a3a50'};background:${i===0?'rgba(201,168,76,0.15)':'transparent'};color:${i===0?'#c9a84c':'#7a8a9a'};font-size:11px;font-family:Space Mono,monospace;cursor:pointer;">\uD83C\uDFE2 ${fd.floorName||'Floor '+(i+1)}</button>`
+  ).join('');
+  renderFloor(0);
+}
+
+function switchFloor(idx) {
+  window.currentFloorIdx = idx;
+  planData = window.allFloorData[idx];
+  (window.allFloorData||[]).forEach((_,i) => {
+    const b = document.getElementById('floorBtn'+i);
+    if (!b) return;
+    b.style.borderColor = i===idx?'#c9a84c':'#2a3a50';
+    b.style.background = i===idx?'rgba(201,168,76,0.15)':'transparent';
+    b.style.color = i===idx?'#c9a84c':'#7a8a9a';
+  });
+  renderFloor(idx);
+}
+
+function renderFloor(idx) {
+  let data = window.allFloorData[idx];
+  if (!data) return;
+  data = validateRooms(data);
+  window.allFloorData[idx] = data;
+  planData = data;
+  renderCanvas(data);
+  renderRoomTable(data);
+  renderVastu(data);
+  renderSummary(data);
+  showTab('plan');
+}
+
+
+
+// ── VALIDATE & FIX ROOM GEOMETRY — SHARED WALLS ──
+function validateRooms(data) {
+  if (!data.rooms || data.rooms.length === 0) return data;
+  const pw = Number(data.plotWidth);
+  const ph = Number(data.plotDepth);
+  const OW = Number(data.outerWall) || 0.75;
+  const IW = Number(data.innerWall) || 0.42;
+
+  // Step 1: Sanitise all values to numbers, clamp inside outer walls
+  data.rooms = data.rooms.map(r => {
+    r.x = Math.max(OW, Math.min(Number(r.x)||OW, pw - OW - 2));
+    r.y = Math.max(OW, Math.min(Number(r.y)||OW, ph - OW - 2));
+    r.w = Math.max(3, Math.min(Number(r.w)||6, pw - OW - r.x));
+    r.h = Math.max(3, Math.min(Number(r.h)||6, ph - OW - r.y));
+    return r;
+  });
+
+  // Step 2: Snap adjacent rooms to share walls (remove gaps ≤ IW*1.5)
+  for (let i = 0; i < data.rooms.length; i++) {
+    for (let j = 0; j < data.rooms.length; j++) {
+      if (i === j) continue;
+      const a = data.rooms[i], b = data.rooms[j];
+      const gap_right = b.x - (a.x + a.w); // gap between a's right and b's left
+      const gap_below = b.y - (a.y + a.h); // gap between a's bottom and b's top
+      // If rooms are horizontally adjacent (overlapping in Y), snap shared wall
+      const yOverlap = a.y < b.y + b.h && a.y + a.h > b.y;
+      const xOverlap = a.x < b.x + b.w && a.x + a.w > b.x;
+      if (yOverlap && gap_right > 0 && gap_right < IW * 2) {
+        // Snap b.x to a.x+a.w (shared wall, zero gap - wall drawn by stroke)
+        b.x = a.x + a.w;
+      }
+      if (xOverlap && gap_below > 0 && gap_below < IW * 2) {
+        b.y = a.y + a.h;
+      }
+    }
+  }
+
+  // Step 3: Re-clamp after snapping
+  data.rooms = data.rooms.map(r => {
+    r.x = Math.max(OW, r.x);
+    r.y = Math.max(OW, r.y);
+    r.w = Math.max(3, Math.min(r.w, pw - OW - r.x));
+    r.h = Math.max(3, Math.min(r.h, ph - OW - r.y));
+    return r;
+  });
+
+  // Step 4: Resolve remaining overlaps (push right then down)
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < data.rooms.length; i++) {
+      for (let j = i+1; j < data.rooms.length; j++) {
+        const a = data.rooms[i], b = data.rooms[j];
+        if (a.x < b.x+b.w-0.1 && a.x+a.w > b.x+0.1 && a.y < b.y+b.h-0.1 && a.y+a.h > b.y+0.1) {
+          // True overlap — push b right or down
+          const pushRight = a.x + a.w - b.x;
+          const pushDown = a.y + a.h - b.y;
+          if (pushRight <= pushDown && b.x + b.w + pushRight <= pw - OW) {
+            b.x += pushRight;
+          } else if (b.y + b.h + pushDown <= ph - OW) {
+            b.y += pushDown;
+          } else {
+            b.x = Math.min(b.x + pushRight, pw - OW - b.w);
+          }
+          b.x = Math.max(OW, Math.min(b.x, pw - OW - b.w));
+          b.y = Math.max(OW, Math.min(b.y, ph - OW - b.h));
+        }
+      }
+    }
+  }
+  return data;
+}
+
+function renderResults(data) {
+  data = validateRooms(data);
+  setLoading(false);
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('resultsDiv').classList.add('active');
+
+  renderCanvas(data);
+  renderRoomTable(data);
+  renderVastu(data);
+  renderSummary(data);
+  showTab('plan');
+}
+
+// ── CANVAS ──
+function renderCanvas(data) {
+  const canvas = document.getElementById('planCanvas');
+  const ctx = canvas.getContext('2d');
+  const padding = 80;
+
+  // Drawing scale: 1:100 = 1cm per 100cm = ~3.78px per ft at 96dpi
+  // 1:50 = ~7.56px per ft, 1:25 = ~15.1px per ft
+  const scaleRatio = data.drawingScale || parseInt(document.getElementById('drawingScale')?.value) || 50;
+  // px per foot = (96px/inch * 0.3937inch/cm) / scaleRatio * 30.48cm/ft
+  const pxPerFt_raw = (96 * 0.3937 * 30.48) / scaleRatio; // physical scale
+  // But we also fit to screen — use the larger of physical or fit-to-screen
+  const containerW = canvas.parentElement.clientWidth || 700;
+  const maxDrawW = Math.min(containerW - 20, 860) - padding * 2;
+  const maxDrawH = Math.min(window.innerHeight * 0.80, 700) - padding * 2;
+  const fitScaleX = maxDrawW / data.plotWidth;
+  const fitScaleY = maxDrawH / data.plotDepth;
+  const fitScale = Math.min(fitScaleX, fitScaleY);
+  // Use physical scale if it fits, otherwise use fit scale
+  const baseScale = Math.min(pxPerFt_raw, fitScale) * zoom;
+  const scale = Math.max(baseScale, 4); // minimum 4px per foot
+
+  const drawW = data.plotWidth * scale;
+  const drawH = data.plotDepth * scale;
+  canvas.width = drawW + padding * 2;
+  canvas.height = drawH + padding * 2;
+  // White paper background for canvas element
+  canvas.style.background = '#FFFFFF';
+  canvas.style.border = '1px solid #ccc';
+  canvas.style.borderRadius = '4px';
+  canvasData = { data, scale, padding };
+
+  drawPlan(ctx, data, scale, padding, canvas.width, canvas.height);
+  updateScaleLabel(scale, data, scaleRatio);
+  buildLegend(data);
+}
+
+// ═══════════════════════════════════════════════════════
+// AUTOCAD-STYLE ARCHITECTURAL DRAWING ENGINE
+// ═══════════════════════════════════════════════════════════════════
+// PROFESSIONAL ARCHITECTURAL FLOOR PLAN DRAWING ENGINE
+// Conventions based on standard residential drafting practice
+// ═══════════════════════════════════════════════════════════════════
+
+// ── COLOUR PALETTE (matches Image 6/7/8 style) ──
+const ROOM_FILLS = {
+  living: '#F0EFE9', drawing: '#F0EFE9',
+  master: '#EBE9F0', bedroom: '#EEF0F5',
+  kitchen: '#F5F0E8', dining: '#F5F0EC',
+  bath: '#E8F0F5', toilet: '#E8F0F5', wc: '#E8F0F5', wash: '#E8F0F5',
+  puja: '#F5EEF5', mandir: '#F5EEF5',
+  study: '#EEF5EE', office: '#EEF5EE',
+  verandah: '#F8F6E8', porch: '#F8F6E8', sit: '#F8F6E8',
+  store: '#F0F0EC', utility: '#F0F0EC',
+  garage: '#EBEBEB', parking: '#EBEBEB',
+  stair: '#EEF0EE', corridor: '#F5F5F2', passage: '#F5F5F2',
+  balcony: '#F0F5E8', terrace: '#F0F5E8',
+  servant: '#F0EEE8', default: '#F2F2F0'
+};
+
+function getRoomFill(name) {
+  const n = (name||'').toLowerCase();
+  for (const [k,v] of Object.entries(ROOM_FILLS)) {
+    if (n.includes(k)) return v;
+  }
+  return ROOM_FILLS.default;
+}
+
+// ── MAIN DRAW FUNCTION ──
+function drawPlan(ctx, data, scale, padding, cw, ch) {
+  if (!data || !data.rooms) return;
+  ctx.clearRect(0, 0, cw, ch);
+
+  const OW = (data.outerWall || 0.75) * scale;
+  const IW = (data.innerWall  || 0.42) * scale;
+  const pw = data.plotWidth  * scale;
+  const ph = data.plotDepth  * scale;
+  const P  = padding;
+
+  // ── WHITE PAPER ──
+  ctx.fillStyle = '#FAFAFA';
+  ctx.fillRect(0, 0, cw, ch);
+
+  // ── SUBTLE GRID DOTS (like Image 2 blueprint) ──
+  ctx.fillStyle = 'rgba(100,130,180,0.18)';
+  const gft = Math.max(1, Math.round(5 / scale * 10) / 10);
+  const gStep = gft * scale;
+  for (let x = P; x <= P + pw + 1; x += gStep)
+    for (let y = P; y <= P + ph + 1; y += gStep) {
+      ctx.beginPath(); ctx.arc(x, y, 0.7, 0, Math.PI*2); ctx.fill();
+    }
+
+  // ── 1. ROOM FILLS (light tints, all rooms) ──
+  for (const r of data.rooms) {
+    const {rx,ry,rw,rh} = roomPx(r, scale, P);
+    if (rw < 1 || rh < 1) continue;
+    ctx.fillStyle = getRoomFill(r.name);
+    ctx.fillRect(rx, ry, rw, rh);
+  }
+
+  // ── 2. OUTER WALLS (thick filled black rectangles) ──
+  // Draw as filled polygon so corners are solid
+  ctx.fillStyle = '#1a1a2e';
+  // Top wall
+  ctx.fillRect(P,           P,           pw, OW);
+  // Bottom wall
+  ctx.fillRect(P,           P+ph-OW,     pw, OW);
+  // Left wall
+  ctx.fillRect(P,           P,           OW, ph);
+  // Right wall
+  ctx.fillRect(P+pw-OW,    P,           OW, ph);
+
+  // ── 3. INTERNAL PARTITION WALLS (dark, thinner) ──
+  drawPartitionWalls(ctx, data, scale, P, OW, IW);
+
+  // ── 4. ROOM BORDER LINES (clean thin lines over fills) ──
+  ctx.strokeStyle = '#1a1a2e';
+  ctx.lineWidth = 0.8;
+  ctx.setLineDash([]);
+  for (const r of data.rooms) {
+    const {rx,ry,rw,rh} = roomPx(r, scale, P);
+    if (rw < 1 || rh < 1) continue;
+    ctx.strokeRect(rx, ry, rw, rh);
+  }
+
+  // ── 5. OPENINGS: Gates, Doors, Windows cut into walls ──
+  drawAllOpenings(ctx, data, scale, P, OW, IW, pw, ph);
+
+  // ── 6. FURNITURE & FIXTURES (simplified symbols) ──
+  drawFurniture(ctx, data, scale, P);
+
+  // ── 7. STAIRS if any ──
+  drawStairs(ctx, data, scale, P);
+
+  // ── 8. ROOM LABELS (name + ft dimensions, centred) ──
+  drawRoomLabels(ctx, data, scale, P);
+
+  // ── 9. DIMENSION LINES (outside boundary) ──
+  drawDimLine(ctx, P, P-32, P+pw, P-32, fmtFt(data.plotWidth), 'H');
+  drawDimLine(ctx, P-34, P, P-34, P+ph, fmtFt(data.plotDepth), 'V');
+
+  // ── 10. NORTH ARROW ──
+  drawNorthArrow(ctx, P+pw+42, P+40, 20);
+
+  // ── 11. ROAD / FACING LABEL ──
+  drawRoadLabel(ctx, data.facing||'North', P, pw, ph);
+
+  // ── 12. TITLE BLOCK ──
+  if (data.floorName) {
+    ctx.fillStyle = '#1a1a2e';
+    ctx.font = 'bold 11px Arial,sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText((data.floorName||'').toUpperCase()+' PLAN', P+pw/2, P+ph+44);
+    ctx.font = '9px Arial,sans-serif'; ctx.fillStyle = '#555';
+    ctx.fillText('Scale 1:' + (data.drawingScale||50) + '  |  All dimensions in feet-inches', P+pw/2, P+ph+57);
+  }
+}
+
+// ── HELPER: room pixel bounds ──
+function roomPx(r, scale, P) {
+  return {
+    rx: P + r.x*scale, ry: P + r.y*scale,
+    rw: r.w*scale,     rh: r.h*scale
+  };
+}
+
+// ── HELPER: feet → ft-in string ──
+function fmtFt(val) {
+  const ft = Math.floor(val);
+  const inches = Math.round((val - ft) * 12);
+  return inches > 0 ? `${ft}'-${inches}"` : `${ft}'-0"`;
+}
+
+// ── PARTITION WALLS between adjacent rooms ──
+function drawPartitionWalls(ctx, data, scale, P, OW, IW) {
+  const rs = data.rooms;
+  for (let i = 0; i < rs.length; i++) {
+    for (let j = i+1; j < rs.length; j++) {
+      const a = rs[i], b = rs[j];
+      const ax1=P+a.x*scale, ax2=P+(a.x+a.w)*scale;
+      const ay1=P+a.y*scale, ay2=P+(a.y+a.h)*scale;
+      const bx1=P+b.x*scale, bx2=P+(b.x+b.w)*scale;
+      const by1=P+b.y*scale, by2=P+(b.y+b.h)*scale;
+      const yOvlp = ay1 < by2-0.5 && ay2 > by1+0.5;
+      const xOvlp = ax1 < bx2-0.5 && ax2 > bx1+0.5;
+      // Shared vertical wall
+      if (yOvlp && Math.abs(ax2-bx1) < scale*0.55) {
+        const wx=(ax2+bx1)/2, wy1=Math.max(ay1,by1), wy2=Math.min(ay2,by2);
+        ctx.fillStyle='#1a1a2e';
+        ctx.fillRect(wx-IW/2, wy1, IW, wy2-wy1);
+      }
+      // Shared horizontal wall
+      if (xOvlp && Math.abs(ay2-by1) < scale*0.55) {
+        const wy=(ay2+by1)/2, wx1=Math.max(ax1,bx1), wx2=Math.min(ax2,bx2);
+        ctx.fillStyle='#1a1a2e';
+        ctx.fillRect(wx1, wy-IW/2, wx2-wx1, IW);
+      }
+    }
+  }
+}
+
+// ══════════════════════════════════
+// OPENINGS — DOORS / WINDOWS / GATE
+// ══════════════════════════════════
+function drawAllOpenings(ctx, data, scale, P, OW, IW, pw, ph) {
+  const facing = (data.facing||'North').toLowerCase();
+  // Main entrance gate
+  drawGate(ctx, facing, P, pw, ph, OW, scale);
+
+  data.rooms.forEach(room => {
+    const {rx,ry,rw,rh} = roomPx(room, scale, P);
+    if (rw < 10 || rh < 10) return;
+    const n = (room.name||'').toLowerCase();
+    const isBath    = n.includes('bath')||n.includes('toilet')||n.includes('wc');
+    const isKitchen = n.includes('kitchen');
+    const isStair   = n.includes('stair');
+    const isOpen    = n.includes('verandah')||n.includes('porch')||
+                      n.includes('balcony')||n.includes('sit out')||n.includes('terrace');
+    const isGarage  = n.includes('garage')||n.includes('parking');
+
+    // ── DOOR (arc swing in longer wall) ──
+    if (!isStair && !isOpen && !isGarage) {
+      const dw = isBath ? 2.2*scale : 3*scale;
+      if (rw >= rh) {
+        // Door on bottom wall, 25% from left
+        drawDoor(ctx, rx + rw*0.25, ry+rh, dw, 'S');
+      } else {
+        // Door on right wall, 25% from top
+        drawDoor(ctx, rx+rw, ry + rh*0.25, dw, 'E');
+      }
+    }
+
+    // ── WINDOWS on external walls (blue inset, 3-line) ──
+    const atN = room.y   <= (data.outerWall||0.75)+0.15;
+    const atS = (room.y+room.h) >= data.plotDepth-(data.outerWall||0.75)-0.15;
+    const atW = room.x   <= (data.outerWall||0.75)+0.15;
+    const atE = (room.x+room.w) >= data.plotWidth-(data.outerWall||0.75)-0.15;
+    const ww  = isBath ? 1.5*scale : isKitchen ? 2.5*scale : 3.5*scale;
+
+    if (atN && !isGarage) drawWindow(ctx, rx+rw*0.6, ry,    ww, 'H', OW);
+    if (atS && !isGarage) drawWindow(ctx, rx+rw*0.6, ry+rh, ww, 'H', OW);
+    if (atW && !isGarage) drawWindow(ctx, rx,    ry+rh*0.6, ww, 'V', OW);
+    if (atE && !isGarage) drawWindow(ctx, rx+rw, ry+rh*0.6, ww, 'V', OW);
+
+    // ── VENTILATOR (tiny, top-right of external wall) ──
+    if (isBath || isKitchen) {
+      if (atN) drawVentilator(ctx, rx+rw*0.8, ry, scale*1.3, 'H');
+      else if (atE) drawVentilator(ctx, rx+rw, ry+rh*0.15, scale*1.3, 'V');
+      else if (atW) drawVentilator(ctx, rx, ry+rh*0.15, scale*1.3, 'V');
+    }
+
+    // ── OPEN AREA HATCH (diagonal X for verandah / balcony) ──
+    if (isOpen) drawOpenAreaHatch(ctx, rx, ry, rw, rh);
+  });
+}
+
+// ── DOOR: line leaf + dashed arc swing ──
+function drawDoor(ctx, x, y, dw, side) {
+  ctx.save();
+  ctx.setLineDash([]);
+  // 1. White gap in wall
+  ctx.fillStyle = '#FAFAFA';
+  if (side==='S'||side==='N') ctx.fillRect(x, y-3, dw, 7);
+  else ctx.fillRect(x-3, y, 7, dw);
+
+  // 2. Door leaf (solid thin line)
+  ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=1.4;
+  ctx.beginPath();
+  if (side==='S'||side==='N') { ctx.moveTo(x,y); ctx.lineTo(x+dw,y); }
+  else { ctx.moveTo(x,y); ctx.lineTo(x,y+dw); }
+  ctx.stroke();
+
+  // 3. Arc swing (dashed quarter circle)
+  ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=0.8;
+  ctx.setLineDash([3,3]);
+  ctx.beginPath();
+  if (side==='S') ctx.arc(x, y, dw, 0, Math.PI/2);
+  else if (side==='N') ctx.arc(x+dw, y, dw, Math.PI/2, Math.PI);
+  else if (side==='E') ctx.arc(x, y, dw, Math.PI/2, Math.PI);
+  else ctx.arc(x, y+dw, dw, -Math.PI/2, 0);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+// ── WINDOW: inset 3-line symbol (blue) ──
+function drawWindow(ctx, x, y, ww, dir, OW) {
+  ctx.save();
+  // White gap
+  ctx.fillStyle='#FAFAFA';
+  if (dir==='H') ctx.fillRect(x-ww/2, y-OW/2, ww, OW);
+  else ctx.fillRect(x-OW/2, y-ww/2, OW, ww);
+
+  // Three lines (outer frame, glass, outer frame)
+  ctx.strokeStyle='#2255AA'; ctx.lineWidth=1.2; ctx.setLineDash([]);
+  const off = OW * 0.28;
+  if (dir==='H') {
+    [-off,0,off].forEach(o => {
+      ctx.beginPath(); ctx.moveTo(x-ww/2, y+o); ctx.lineTo(x+ww/2, y+o); ctx.stroke();
+    });
+  } else {
+    [-off,0,off].forEach(o => {
+      ctx.beginPath(); ctx.moveTo(x+o, y-ww/2); ctx.lineTo(x+o, y+ww/2); ctx.stroke();
+    });
+  }
+  ctx.restore();
+}
+
+// ── VENTILATOR: tiny hatched box ──
+function drawVentilator(ctx, x, y, size, dir) {
+  ctx.save();
+  ctx.fillStyle='#dde8f0';
+  ctx.strokeStyle='#2255AA'; ctx.lineWidth=0.8; ctx.setLineDash([]);
+  if (dir==='H') {
+    ctx.fillRect(x-size/2, y-2, size, 5);
+    ctx.strokeRect(x-size/2, y-2, size, 5);
+    ctx.beginPath();
+    ctx.moveTo(x-size/2,y-2); ctx.lineTo(x+size/2,y+3);
+    ctx.moveTo(x+size/2,y-2); ctx.lineTo(x-size/2,y+3);
+    ctx.stroke();
+  } else {
+    ctx.fillRect(x-2, y-size/2, 5, size);
+    ctx.strokeRect(x-2, y-size/2, 5, size);
+    ctx.beginPath();
+    ctx.moveTo(x-2,y-size/2); ctx.lineTo(x+3,y+size/2);
+    ctx.moveTo(x+3,y-size/2); ctx.lineTo(x-2,y+size/2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── OPEN AREA / VOID: diagonal X lines ──
+function drawOpenAreaHatch(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  ctx.strokeStyle='rgba(80,100,140,0.3)'; ctx.lineWidth=0.8;
+  ctx.setLineDash([4,4]);
+  ctx.beginPath();
+  ctx.moveTo(rx,ry); ctx.lineTo(rx+rw,ry+rh);
+  ctx.moveTo(rx+rw,ry); ctx.lineTo(rx,ry+rh);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+// ── MAIN GATE: gap in outer wall + two posts ──
+function drawGate(ctx, facing, P, pw, ph, OW, scale) {
+  const gw = Math.max(12, scale * 3.5);
+  ctx.save(); ctx.setLineDash([]);
+
+  function gateAt(gx, gy, gw, gh, side) {
+    // White gap
+    ctx.fillStyle='#FAFAFA'; ctx.fillRect(gx, gy, gw, gh);
+    // Gate posts (small filled squares)
+    ctx.fillStyle='#1a1a2e';
+    if (side==='H') { // horizontal wall
+      ctx.fillRect(gx-4, gy, 5, gh);
+      ctx.fillRect(gx+gw-1, gy, 5, gh);
+    } else {
+      ctx.fillRect(gx, gy-4, gw, 5);
+      ctx.fillRect(gx, gy+gh-1, gw, 5);
+    }
+    // Entry label
+    ctx.fillStyle='#1a1a2e'; ctx.font='bold 7px Arial,sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    if (side==='H') ctx.fillText('ENTRY', gx+gw/2, gy+(facing.includes('north')?-10:ph+10)+P);
+    else ctx.fillText('ENTRY', gx+(facing.includes('west')?-16:pw+16)+P, gy+gh/2);
+  }
+
+  if (facing.includes('north'))
+    gateAt(P+pw/2-gw/2, P, gw, OW, 'H');
+  else if (facing.includes('south'))
+    gateAt(P+pw/2-gw/2, P+ph-OW, gw, OW, 'H');
+  else if (facing.includes('east'))
+    gateAt(P+pw-OW, P+ph/2-gw/2, OW, gw, 'V');
+  else
+    gateAt(P, P+ph/2-gw/2, OW, gw, 'V');
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════
+// FURNITURE & FIXTURE SYMBOLS
+// ══════════════════════════════════
+function drawFurniture(ctx, data, scale, P) {
+  data.rooms.forEach(room => {
+    const {rx,ry,rw,rh} = roomPx(room, scale, P);
+    if (rw < 18 || rh < 18) return;
+    const n = (room.name||'').toLowerCase();
+
+    if (n.includes('bath') || n.includes('toilet') || n.includes('wc') || n.includes('wash'))
+      drawBathroomFull(ctx, rx, ry, rw, rh);
+    else if (n.includes('master bed') || n.includes('master bedroom'))
+      drawBed(ctx, rx, ry, rw, rh, true);
+    else if (n.includes('bed'))
+      drawBed(ctx, rx, ry, rw, rh, false);
+    else if (n.includes('living') || n.includes('drawing') || n.includes('hall'))
+      drawSofa(ctx, rx, ry, rw, rh);
+    else if (n.includes('dining'))
+      drawDiningTable(ctx, rx, ry, rw, rh);
+    else if (n.includes('kitchen'))
+      drawKitchenPlatform(ctx, rx, ry, rw, rh);
+    else if (n.includes('study') || n.includes('office'))
+      drawStudyDesk(ctx, rx, ry, rw, rh);
+    else if (n.includes('puja') || n.includes('mandir'))
+      drawPujaSymbol(ctx, rx, ry, rw, rh);
+  });
+}
+
+// ── BED SYMBOL: rectangle + diagonal triangle headboard ──
+function drawBed(ctx, rx, ry, rw, rh, isMaster) {
+  ctx.save();
+  const bw = Math.min(rw*0.6, isMaster ? 80 : 65);
+  const bh = Math.min(rh*0.65, isMaster ? 90 : 75);
+  const bx = rx + (rw-bw)/2, by = ry + (rh-bh)/2;
+  // Bed frame
+  ctx.fillStyle='#fff'; ctx.strokeStyle='#888'; ctx.lineWidth=1;
+  ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh);
+  // Pillow(s) — small rectangles at top
+  ctx.fillStyle='#eee';
+  if (isMaster) {
+    ctx.fillRect(bx+4, by+4, bw/2-8, bh*0.22);
+    ctx.fillRect(bx+bw/2+2, by+4, bw/2-6, bh*0.22);
+  } else {
+    ctx.fillRect(bx+4, by+4, bw-8, bh*0.22);
+  }
+  ctx.strokeStyle='#aaa'; ctx.lineWidth=0.7;
+  if (isMaster) {
+    ctx.strokeRect(bx+4, by+4, bw/2-8, bh*0.22);
+    ctx.strokeRect(bx+bw/2+2, by+4, bw/2-6, bh*0.22);
+  } else ctx.strokeRect(bx+4, by+4, bw-8, bh*0.22);
+  // Diagonal lines (mattress texture)
+  ctx.strokeStyle='rgba(150,150,150,0.4)'; ctx.lineWidth=0.5;
+  ctx.beginPath();
+  ctx.moveTo(bx, by+bh*0.3); ctx.lineTo(bx+bw, by+bh);
+  ctx.moveTo(bx+bw, by+bh*0.3); ctx.lineTo(bx, by+bh);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ── SOFA SYMBOL ──
+function drawSofa(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  const sw = Math.min(rw*0.6, 90), sh = Math.min(rh*0.3, 35);
+  const sx = rx + rw*0.2, sy = ry + rh*0.6;
+  ctx.fillStyle='#e8e4dc'; ctx.strokeStyle='#888'; ctx.lineWidth=1;
+  // Main sofa body
+  ctx.fillRect(sx, sy, sw, sh); ctx.strokeRect(sx, sy, sw, sh);
+  // Seat cushions (3 sections)
+  ctx.strokeStyle='#aaa'; ctx.lineWidth=0.7;
+  ctx.beginPath();
+  ctx.moveTo(sx+sw/3, sy); ctx.lineTo(sx+sw/3, sy+sh);
+  ctx.moveTo(sx+2*sw/3, sy); ctx.lineTo(sx+2*sw/3, sy+sh);
+  ctx.stroke();
+  // Backrest
+  ctx.fillStyle='#d8d4cc';
+  ctx.fillRect(sx, sy-sh*0.3, sw, sh*0.3);
+  ctx.strokeRect(sx, sy-sh*0.3, sw, sh*0.3);
+  // Coffee table
+  const tw=sw*0.4, th=sh*0.7;
+  ctx.fillStyle='#fff';
+  ctx.fillRect(sx+(sw-tw)/2, sy-sh*1.4, tw, th);
+  ctx.strokeStyle='#888'; ctx.lineWidth=0.8;
+  ctx.strokeRect(sx+(sw-tw)/2, sy-sh*1.4, tw, th);
+  ctx.restore();
+}
+
+// ── DINING TABLE + CHAIRS ──
+function drawDiningTable(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  const tw = Math.min(rw*0.55, 75), th = Math.min(rh*0.55, 55);
+  const tx = rx+(rw-tw)/2, ty = ry+(rh-th)/2;
+  ctx.fillStyle='#fff'; ctx.strokeStyle='#888'; ctx.lineWidth=1;
+  ctx.fillRect(tx, ty, tw, th); ctx.strokeRect(tx, ty, tw, th);
+  // Chairs (small squares around table)
+  ctx.fillStyle='#e8e4dc'; ctx.lineWidth=0.8;
+  const cs=10, cg=3;
+  // Top chairs
+  let cx=tx+10;
+  while (cx+cs < tx+tw-4) {
+    ctx.fillRect(cx, ty-cs-cg, cs, cs); ctx.strokeRect(cx, ty-cs-cg, cs, cs); cx+=cs+6;
+  }
+  // Bottom chairs
+  cx=tx+10;
+  while (cx+cs < tx+tw-4) {
+    ctx.fillRect(cx, ty+th+cg, cs, cs); ctx.strokeRect(cx, ty+th+cg, cs, cs); cx+=cs+6;
+  }
+  // Side chairs
+  ctx.fillRect(tx-cs-cg, ty+10, cs, cs); ctx.strokeRect(tx-cs-cg, ty+10, cs, cs);
+  ctx.fillRect(tx+tw+cg, ty+10, cs, cs); ctx.strokeRect(tx+tw+cg, ty+10, cs, cs);
+  ctx.restore();
+}
+
+// ── KITCHEN PLATFORM: L-shape counter + sink + hob ──
+function drawKitchenPlatform(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  const cw = rw * 0.22, ch = rh * 0.22; // counter width
+  ctx.strokeStyle='#666'; ctx.lineWidth=1.2; ctx.setLineDash([]);
+  ctx.fillStyle='#ddd';
+  // Top counter (along top wall)
+  ctx.fillRect(rx+2, ry+2, rw-4, ch); ctx.strokeRect(rx+2, ry+2, rw-4, ch);
+  // Right counter (along right wall)
+  ctx.fillRect(rx+rw-cw-2, ry+2, cw, rh*0.6); ctx.strokeRect(rx+rw-cw-2, ry+2, cw, rh*0.6);
+  // Sink (on top counter, left side)
+  ctx.fillStyle='#b8d4e8'; ctx.strokeStyle='#555';
+  const sk=Math.min(16, cw*1.2), skx=rx+6, sky=ry+4;
+  ctx.fillRect(skx, sky, sk, ch-4); ctx.strokeRect(skx, sky, sk, ch-4);
+  ctx.beginPath(); ctx.arc(skx+sk/2, sky+ch/2-2, 2, 0, Math.PI*2); ctx.stroke(); // drain
+  // Hob (on top counter, right of sink)
+  ctx.fillStyle='#888';
+  const hx=skx+sk+6, hy=ry+4, hr=Math.min(5, ch*0.4);
+  [0,1,2,3].forEach(i => {
+    const bx=hx+(i%2)*hr*2.8, by=hy+(Math.floor(i/2))*hr*2.8;
+    ctx.beginPath(); ctx.arc(bx+hr, by+hr, hr, 0, Math.PI*2);
+    ctx.fillStyle='#999'; ctx.fill();
+    ctx.strokeStyle='#555'; ctx.lineWidth=0.7; ctx.stroke();
+  });
+  ctx.restore();
+}
+
+// ── BATHROOM: Full fixture layout (toilet + basin + shower area) ──
+function drawBathroomFull(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  ctx.strokeStyle='#5580a0'; ctx.lineWidth=0.9;
+
+  // Floor tile hatch (light blue diagonal)
+  ctx.fillStyle='#e8f2f8';
+  ctx.fillRect(rx+1, ry+1, rw-2, rh-2);
+  // Tile grid
+  ctx.strokeStyle='rgba(80,120,180,0.2)'; ctx.lineWidth=0.4;
+  const ts = Math.max(6, Math.min(12, rw/4));
+  for (let x=rx; x<rx+rw; x+=ts) { ctx.beginPath(); ctx.moveTo(x,ry); ctx.lineTo(x,ry+rh); ctx.stroke(); }
+  for (let y=ry; y<ry+rh; y+=ts) { ctx.beginPath(); ctx.moveTo(rx,y); ctx.lineTo(rx+rw,y); ctx.stroke(); }
+
+  ctx.strokeStyle='#5580a0'; ctx.lineWidth=0.9;
+  const isSmall = rw < 30 || rh < 36; // half-bath or small WC
+
+  if (isSmall) {
+    // Small toilet only layout
+    // Toilet (cistern at top, pan below)
+    const tw=Math.min(rw*0.7,22), th=Math.min(rh*0.55,30);
+    const tx=rx+(rw-tw)/2, ty=ry+rh-th-3;
+    // Cistern
+    ctx.fillStyle='#d0e4f0'; ctx.fillRect(tx, ty, tw, th*0.3); ctx.strokeRect(tx, ty, tw, th*0.3);
+    // Pan
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.ellipse(tx+tw/2, ty+th*0.72, tw*0.44, th*0.36, 0, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+    // Seat line
+    ctx.beginPath(); ctx.ellipse(tx+tw/2, ty+th*0.72, tw*0.36, th*0.28, 0, 0, Math.PI*2); ctx.stroke();
+    // Basin
+    const bw=Math.min(rw*0.55,16), bh=Math.min(rh*0.22,14);
+    ctx.fillStyle='#fff'; ctx.fillRect(rx+(rw-bw)/2, ry+3, bw, bh); ctx.strokeRect(rx+(rw-bw)/2, ry+3, bw, bh);
+    ctx.fillStyle='#aaa'; ctx.beginPath(); ctx.arc(rx+rw/2, ry+3+bh/2, 2, 0, Math.PI*2); ctx.fill();
+  } else {
+    // Full bathroom layout
+    const isWide = rw > rh; // landscape or portrait
+
+    if (isWide) {
+      // Landscape: basin left, toilet middle/right, shower right
+      // Basin (wall-hung style, left)
+      const bw=Math.min(rw*0.28,22), bh=Math.min(rh*0.32,20);
+      ctx.fillStyle='#fff'; ctx.fillRect(rx+3, ry+3, bw, bh); ctx.strokeRect(rx+3, ry+3, bw, bh);
+      // Basin circle + tap
+      ctx.beginPath(); ctx.ellipse(rx+3+bw/2, ry+3+bh/2, bw*0.38, bh*0.38, 0, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle='#aaa'; ctx.beginPath(); ctx.arc(rx+3+bw/2, ry+3+bh*0.25, 1.8, 0, Math.PI*2); ctx.fill();
+
+      // Toilet (center)
+      const tw=Math.min(rw*0.32,24), th=Math.min(rh*0.55,36);
+      const tx=rx+(rw-tw)/2, ty=ry+rh-th-3;
+      ctx.fillStyle='#d0e4f0'; ctx.fillRect(tx, ty, tw, th*0.28); ctx.strokeRect(tx, ty, tw, th*0.28);
+      ctx.fillStyle='#fff';
+      ctx.beginPath(); ctx.ellipse(tx+tw/2, ty+th*0.7, tw*0.42, th*0.34, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(tx+tw/2, ty+th*0.7, tw*0.33, th*0.26, 0, 0, Math.PI*2); ctx.stroke();
+
+      // Shower area (right, with diagonal hatch)
+      const sw=Math.min(rw*0.28,22), sh=Math.min(rh*0.45,30);
+      const ssx=rx+rw-sw-3, ssy=ry+3;
+      ctx.fillStyle='rgba(200,220,240,0.5)'; ctx.fillRect(ssx,ssy,sw,sh); ctx.strokeRect(ssx,ssy,sw,sh);
+      // Shower head symbol
+      ctx.strokeStyle='#5580a0'; ctx.lineWidth=0.7;
+      ctx.beginPath(); ctx.arc(ssx+sw/2, ssy+sh*0.35, sw*0.28, 0, Math.PI*2); ctx.stroke();
+      // Shower drain
+      ctx.beginPath(); ctx.arc(ssx+sw/2, ssy+sh*0.75, 2.5, 0, Math.PI*2); ctx.stroke();
+
+    } else {
+      // Portrait: basin top, toilet bottom, optional shower corner
+      // Basin (top, near wall)
+      const bw=Math.min(rw*0.55,22), bh=Math.min(rh*0.22,18);
+      const bx=rx+(rw-bw)/2, by=ry+3;
+      ctx.fillStyle='#fff'; ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh);
+      ctx.beginPath(); ctx.ellipse(bx+bw/2, by+bh/2, bw*0.36, bh*0.36, 0, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle='#aaa'; ctx.beginPath(); ctx.arc(bx+bw/2, by+bh*0.28, 1.8, 0, Math.PI*2); ctx.fill();
+
+      // Toilet (bottom)
+      const tw=Math.min(rw*0.6,26), th=Math.min(rh*0.42,34);
+      const tx=rx+(rw-tw)/2, ty=ry+rh-th-3;
+      ctx.fillStyle='#d0e4f0'; ctx.strokeStyle='#5580a0';
+      ctx.fillRect(tx, ty, tw, th*0.28); ctx.strokeRect(tx, ty, tw, th*0.28);
+      ctx.fillStyle='#fff';
+      ctx.beginPath(); ctx.ellipse(tx+tw/2, ty+th*0.7, tw*0.42, th*0.34, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(tx+tw/2, ty+th*0.7, tw*0.33, th*0.26, 0, 0, Math.PI*2); ctx.stroke();
+
+      // Shower (middle area if room is tall enough)
+      if (rh > 50) {
+        const sw=Math.min(rw*0.45,20), sh=Math.min(rh*0.22,18);
+        const ssx=rx+(rw-sw)/2, ssy=ry+bh+8;
+        ctx.fillStyle='rgba(200,220,240,0.5)'; ctx.fillRect(ssx,ssy,sw,sh); ctx.strokeRect(ssx,ssy,sw,sh);
+        ctx.beginPath(); ctx.arc(ssx+sw/2, ssy+sh/2, sw*0.26, 0, Math.PI*2); ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+}
+
+// ── STUDY DESK ──
+function drawStudyDesk(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  const dw=Math.min(rw*0.6,70), dh=Math.min(rh*0.28,22);
+  ctx.fillStyle='#e8e4d8'; ctx.strokeStyle='#888'; ctx.lineWidth=1;
+  ctx.fillRect(rx+(rw-dw)/2, ry+4, dw, dh);
+  ctx.strokeRect(rx+(rw-dw)/2, ry+4, dw, dh);
+  // Chair
+  const cs=16;
+  ctx.fillRect(rx+(rw-cs)/2, ry+dh+8, cs, cs);
+  ctx.strokeRect(rx+(rw-cs)/2, ry+dh+8, cs, cs);
+  ctx.restore();
+}
+
+// ── PUJA SYMBOL (diya / lamp) ──
+function drawPujaSymbol(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  const cx=rx+rw/2, cy=ry+rh/2;
+  ctx.fillStyle='#c8a84c'; ctx.strokeStyle='#8a6a20'; ctx.lineWidth=1;
+  // Platform
+  ctx.fillRect(cx-20, cy+5, 40, 8); ctx.strokeRect(cx-20, cy+5, 40, 8);
+  // Flame (triangle)
+  ctx.fillStyle='#e8a020';
+  ctx.beginPath(); ctx.moveTo(cx, cy-18); ctx.lineTo(cx-8, cy+4); ctx.lineTo(cx+8, cy+4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#f8c040';
+  ctx.beginPath(); ctx.moveTo(cx, cy-10); ctx.lineTo(cx-4, cy+2); ctx.lineTo(cx+4, cy+2); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+// ══════════════════════════════════
+// STAIRCASE SYMBOL
+// ══════════════════════════════════
+function drawStairs(ctx, data, scale, P) {
+  data.rooms.forEach(room => {
+    const n=(room.name||'').toLowerCase();
+    if (!n.includes('stair') && !n.includes('staircase')) return;
+    const {rx,ry,rw,rh} = roomPx(room, scale, P);
+    ctx.save();
+    ctx.fillStyle='#f0ece4'; ctx.strokeStyle='#555'; ctx.lineWidth=0.8;
+    // Steps as parallel lines
+    const steps = Math.max(4, Math.round(rh / (rw > rh ? rw*0.15 : rh*0.12)));
+    const stepH = rh / steps;
+    for (let i=0; i<steps; i++) {
+      ctx.fillStyle = i%2===0 ? '#e8e4de':'#f0ece6';
+      ctx.fillRect(rx, ry+i*stepH, rw, stepH);
+      ctx.strokeRect(rx, ry+i*stepH, rw, stepH);
+    }
+    // UP arrow
+    ctx.fillStyle='#333'; ctx.font='bold 7px Arial'; ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText('UP', rx+4, ry+rh/2);
+    ctx.strokeStyle='#333'; ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(rx+20, ry+rh/2); ctx.lineTo(rx+20, ry+6);
+    ctx.lineTo(rx+17, ry+10); ctx.moveTo(rx+20, ry+6); ctx.lineTo(rx+23, ry+10);
+    ctx.stroke();
+    ctx.restore();
+  });
+}
+
+// ══════════════════════════════════
+// DIMENSION LINES
+// ══════════════════════════════════
+function drawDimLine(ctx, x1, y1, x2, y2, label, dir) {
+  ctx.save();
+  ctx.strokeStyle='#333'; ctx.fillStyle='#111';
+  ctx.lineWidth=0.8; ctx.setLineDash([]);
+  // Main dim line
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  // Tick marks at ends
+  if (dir==='H') {
+    ctx.beginPath(); ctx.moveTo(x1,y1-6); ctx.lineTo(x1,y1+6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2,y2-6); ctx.lineTo(x2,y2+6); ctx.stroke();
+    // Extension lines (dotted)
+    ctx.setLineDash([2,3]); ctx.strokeStyle='#888';
+    ctx.beginPath(); ctx.moveTo(x1,y1+6); ctx.lineTo(x1,y1+30); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2,y2+6); ctx.lineTo(x2,y2+30); ctx.stroke();
+    ctx.setLineDash([]);
+    // Label
+    ctx.font='bold 10px Arial,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#fff';
+    const tw=ctx.measureText(label).width+8;
+    ctx.fillRect((x1+x2)/2-tw/2, y1-8, tw, 16);
+    ctx.fillStyle='#111'; ctx.fillText(label, (x1+x2)/2, y1);
+    // Arrows
+    [[x1,y1,1],[x2,y2,-1]].forEach(([ax,ay,dir]) => {
+      ctx.fillStyle='#333';
+      ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(ax+6*dir,ay-3); ctx.lineTo(ax+6*dir,ay+3); ctx.closePath(); ctx.fill();
+    });
+  } else {
+    ctx.beginPath(); ctx.moveTo(x1-6,y1); ctx.lineTo(x1+6,y1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2-6,y2); ctx.lineTo(x2+6,y2); ctx.stroke();
+    ctx.setLineDash([2,3]); ctx.strokeStyle='#888';
+    ctx.beginPath(); ctx.moveTo(x1-6,y1); ctx.lineTo(x1-30,y1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2-6,y2); ctx.lineTo(x2-30,y2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.save(); ctx.translate(x1,(y1+y2)/2); ctx.rotate(-Math.PI/2);
+    ctx.font='bold 10px Arial,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    const tw=ctx.measureText(label).width+8;
+    ctx.fillStyle='#fff'; ctx.fillRect(-tw/2,-8,tw,16);
+    ctx.fillStyle='#111'; ctx.fillText(label,0,0); ctx.restore();
+    [[y1,1],[y2,-1]].forEach(([ay,d]) => {
+      ctx.fillStyle='#333';
+      ctx.beginPath(); ctx.moveTo(x1,ay); ctx.lineTo(x1-3,ay+6*d); ctx.lineTo(x1+3,ay+6*d); ctx.closePath(); ctx.fill();
+    });
+  }
+  ctx.restore();
+}
+
+// ══════════════════════════════════
+// ROOM LABELS
+// ══════════════════════════════════
+function drawRoomLabels(ctx, data, scale, P) {
+  data.rooms.forEach(room => {
+    const {rx,ry,rw,rh} = roomPx(room, scale, P);
+    if (rw < 14 || rh < 14) return;
+    const n = (room.name||'').toLowerCase();
+    const isStair = n.includes('stair');
+    const cx=rx+rw/2, cy=ry+rh/2;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(rx+2,ry+2,rw-4,rh-4); ctx.clip();
+
+    // Name — mixed case, bold
+    const fs = Math.max(7, Math.min(13, Math.min(rw/6.5, rh/4.5)));
+    ctx.fillStyle='#1a1a2e';
+    ctx.font=`bold ${fs}px Arial,sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    if (!isStair) ctx.fillText(room.name, cx, cy - fs*0.8);
+
+    // Dimension string
+    const dfs = Math.max(6, fs-2);
+    ctx.font=`${dfs}px Arial,sans-serif`;
+    ctx.fillStyle='#445566';
+    if (!isStair) ctx.fillText(fmtFt(room.w)+'×'+fmtFt(room.h), cx, cy+fs*0.7);
+    ctx.restore();
+  });
+}
+
+// ══════════════════════════════════
+// NORTH ARROW
+// ══════════════════════════════════
+function drawNorthArrow(ctx, cx, cy, r) {
+  ctx.save();
+  // Circle
+  ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=1.2;
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  // North filled half
+  ctx.fillStyle='#1a1a2e';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy-r+2);
+  ctx.lineTo(cx-r*0.32, cy+r*0.35);
+  ctx.lineTo(cx, cy-1);
+  ctx.closePath(); ctx.fill();
+  // South open half (outline only)
+  ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=0.8;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy-r+2);
+  ctx.lineTo(cx+r*0.32, cy+r*0.35);
+  ctx.lineTo(cx, cy-1);
+  ctx.closePath(); ctx.stroke();
+  // N label
+  ctx.fillStyle='#1a1a2e';
+  ctx.font=`bold ${Math.max(8,Math.round(r*0.52))}px Arial,sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('N', cx, cy+r*0.68);
+  ctx.restore();
+}
+
+// ══════════════════════════════════
+// ROAD LABEL
+// ══════════════════════════════════
+function drawRoadLabel(ctx, facing, P, pw, ph) {
+  const f=facing.toLowerCase();
+  ctx.save();
+  ctx.fillStyle='#333'; ctx.font='bold 8px Arial,sans-serif';
+  ctx.textAlign='center'; ctx.strokeStyle='#bbb'; ctx.lineWidth=1; ctx.setLineDash([5,4]);
+  if (f.includes('north')) {
+    ctx.beginPath(); ctx.moveTo(P,P-42); ctx.lineTo(P+pw,P-42); ctx.stroke();
+    ctx.fillText('— ROAD —', P+pw/2, P-48);
+  } else if (f.includes('south')) {
+    ctx.beginPath(); ctx.moveTo(P,P+ph+42); ctx.lineTo(P+pw,P+ph+42); ctx.stroke();
+    ctx.fillText('— ROAD —', P+pw/2, P+ph+50);
+  } else if (f.includes('east')) {
+    ctx.save(); ctx.translate(P+pw+48, P+ph/2); ctx.rotate(Math.PI/2);
+    ctx.beginPath(); ctx.moveTo(-ph/2,0); ctx.lineTo(ph/2,0); ctx.stroke();
+    ctx.fillText('— ROAD —', 0, 10); ctx.restore();
+  } else {
+    ctx.save(); ctx.translate(P-48, P+ph/2); ctx.rotate(-Math.PI/2);
+    ctx.beginPath(); ctx.moveTo(-ph/2,0); ctx.lineTo(ph/2,0); ctx.stroke();
+    ctx.fillText('— ROAD —', 0, 10); ctx.restore();
+  }
+  ctx.setLineDash([]); ctx.restore();
+}
+
+
+function updateScaleLabel(scale, data, scaleRatio) {
+  const el = document.getElementById('scaleLabel');
+  if (!el) return;
+  const sr = scaleRatio || 50;
+  // 5ft bar width in pixels
+  const barPx = Math.round(5 * scale);
+  const scaleBar = document.querySelector('.scale-line');
+  if (scaleBar) scaleBar.style.width = barPx + 'px';
+  el.textContent = `5 ft  (Drawing Scale 1:${sr})`;
+}
+
+function buildLegend(data) {
+  const div = document.getElementById('legendDiv');
+  if (!div) return;
+  const items = [
+    { bg:'#F0EFE9', label:'Living / Drawing' },
+    { bg:'#EBE9F0', label:'Master Bedroom' },
+    { bg:'#EEF0F5', label:'Bedroom' },
+    { bg:'#F5F0E8', label:'Kitchen' },
+    { bg:'#F5F0EC', label:'Dining Room' },
+    { bg:'#E8F0F5', label:'Master Bathroom (attached)' },
+    { bg:'#EAF2F8', label:'Attached Bathroom' },
+    { bg:'#D6EAF8', label:'Common Bathroom / WC' },
+    { bg:'#F5EEF5', label:'Puja / Mandir' },
+    { bg:'#EEF5EE', label:'Study / Office' },
+    { bg:'#F8F6E8', label:'Verandah / Porch' },
+    { bg:'#F0F0EC', label:'Store / Garage' },
+    { bg:'#1a1a2e', label:'Structural Wall', color:'#fff' },
+  ];
+  div.innerHTML = items.map(it =>
+    `<div class="legend-item">
+      <div class="legend-swatch" style="background:${it.bg};border:1px solid #aaa;"></div>
+      <span style="color:${it.color||'inherit'}">${it.label}</span>
+    </div>`
+  ).join('');
+  div.innerHTML += `<div style="font-size:9px;margin-top:6px;opacity:0.7;font-family:monospace">
+    <b>D</b>=Door arc &nbsp;|&nbsp; <b>W</b>=Window &nbsp;|&nbsp; <b>V</b>=Ventilator
+  </div>`;
+}
+
+// ── ZOOM ──
+function zoomIn() { zoom = Math.min(zoom * 1.25, 4); if (planData) renderCanvas(planData); }
+function zoomOut() { zoom = Math.max(zoom / 1.25, 0.4); if (planData) renderCanvas(planData); }
+function resetZoom() { zoom = 1; if (planData) renderCanvas(planData); }
+
+// ── ROOM TABLE ──
+function renderRoomTable(data) {
+  const tbody = document.getElementById('roomTableBody');
+  tbody.innerHTML = '';
+  (data.rooms || []).forEach(room => {
+    const area = (room.w * room.h).toFixed(0);
+    const vc = room.vastuCompliant;
+    const badge = vc === true ? `<span class="vastu-badge vastu-ok">✓ Good</span>` :
+                  vc === false ? `<span class="vastu-badge vastu-bad">✗ Issue</span>` :
+                  `<span class="vastu-badge vastu-warn">~ Fair</span>`;
+    tbody.innerHTML += `
+      <tr>
+        <td><strong>${room.name}</strong>${room.attachedBath ? '<br><small style="color:var(--muted)">+Attached Bath</small>' : ''}</td>
+        <td><span style="color:var(--accent)">${room.direction || '—'}</span></td>
+        <td>${room.w} × ${room.h}</td>
+        <td>${area} sq ft</td>
+        <td>${badge}</td>
+      </tr>`;
+  });
+  // Total
+  const total = (data.rooms || []).reduce((s, r) => s + r.w * r.h, 0);
+  tbody.innerHTML += `<tr style="border-top: 1px solid var(--border)"><td colspan="3"><strong>Total Build-up Area</strong></td><td><strong style="color:var(--accent)">${data.totalBuildUpArea || total.toFixed(0)} sq ft</strong></td><td></td></tr>`;
+}
+
+// ── VASTU ──
+function renderVastu(data) {
+  const score = data.vastuScore || 75;
+  const circ = 2 * Math.PI * 40;
+  const dash = (score / 100) * circ;
+  const color = score >= 80 ? '#4caf82' : score >= 60 ? '#e07b3f' : '#d94f4f';
+  const label = score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : 'Needs Work';
+
+  document.getElementById('vastuScoreCard').innerHTML = `
+    <div class="ring-wrap">
+      <svg width="90" height="90" viewBox="0 0 90 90">
+        <circle cx="45" cy="45" r="40" stroke="rgba(201,168,76,0.1)" stroke-width="6" fill="none"/>
+        <circle cx="45" cy="45" r="40" stroke="${color}" stroke-width="6" fill="none"
+          stroke-dasharray="${dash} ${circ}" stroke-linecap="round"/>
+      </svg>
+      <div class="ring-score">${score}</div>
+    </div>
+    <div class="score-details">
+      <h3>Vastu Score: ${label}</h3>
+      <p>${data.vastuSummary || 'Your floor plan follows core Vastu principles for positive energy flow.'}</p>
+    </div>`;
+
+  const rulesDiv = document.getElementById('vastuRules');
+  rulesDiv.innerHTML = '';
+  (data.vastuRules || []).forEach(rule => {
+    const icon = rule.status === 'ok' ? '✅' : rule.status === 'warn' ? '⚠️' : '❌';
+    rulesDiv.innerHTML += `
+      <div class="vastu-rule ${rule.status}">
+        <div class="rule-icon">${icon}</div>
+        <div class="rule-text"><strong>${rule.rule}</strong>${rule.detail}</div>
+      </div>`;
+  });
+}
+
+// ── SUMMARY ──
+function renderSummary(data) {
+  const total = (data.rooms || []).reduce((s, r) => s + r.w * r.h, 0);
+  const plotArea = data.plotWidth * data.plotDepth;
+  const utilisation = Math.round((total / plotArea) * 100);
+
+  document.getElementById('summaryGrid').innerHTML = `
+    <div class="summary-card"><div class="val">${data.plotWidth}×${data.plotDepth}</div><div class="lbl">Plot Size (ft)</div></div>
+    <div class="summary-card"><div class="val">${plotArea}</div><div class="lbl">Plot Area (sq ft)</div></div>
+    <div class="summary-card"><div class="val">${data.totalBuildUpArea || total.toFixed(0)}</div><div class="lbl">Built-up Area (sq ft)</div></div>
+    <div class="summary-card"><div class="val">${utilisation}%</div><div class="lbl">Space Utilisation</div></div>
+    <div class="summary-card"><div class="val">${(data.rooms||[]).length}</div><div class="lbl">Total Rooms</div></div>
+    <div class="summary-card"><div class="val">${data.vastuScore || '—'}</div><div class="lbl">Vastu Score</div></div>`;
+
+  const notes = document.getElementById('notesSection');
+  notes.innerHTML = '';
+  if (data.ventilationNotes) notes.innerHTML += `<div class="note-box"><strong>🌬 Cross Ventilation</strong>${data.ventilationNotes}</div>`;
+  if (data.lightingNotes) notes.innerHTML += `<div class="note-box"><strong>☀️ Natural Lighting</strong>${data.lightingNotes}</div>`;
+  if (data.spaceNotes) notes.innerHTML += `<div class="note-box"><strong>📐 Space Utilisation</strong>${data.spaceNotes}</div>`;
+  if (data.recommendations && data.recommendations.length) {
+    notes.innerHTML += `<div class="note-box"><strong>💡 Recommendations</strong><ul style="margin-top:8px;padding-left:16px">${data.recommendations.map(r => `<li>${r}</li>`).join('')}</ul></div>`;
+  }
+}
+
+// ── PDF EXPORT ──
+async function exportPDF() {
+  if (!planData) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+
+  // Background
+  doc.setFillColor(8, 17, 30);
+  doc.rect(0, 0, pageW, pageH, 'F');
+
+  // Header
+  doc.setFillColor(14, 31, 53);
+  doc.rect(0, 0, pageW, 25, 'F');
+  doc.setTextColor(201, 168, 76);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('VastuPlan AI — Floor Plan Report', pageW / 2, 12, { align: 'center' });
+  doc.setFontSize(9);
+  doc.setTextColor(122, 143, 166);
+  doc.text(`Plot: ${planData.plotWidth}ft × ${planData.plotDepth}ft | Facing: ${planData.facing} | Generated: ${new Date().toLocaleDateString('en-IN')}`, pageW / 2, 20, { align: 'center' });
+
+  // Canvas image
+  const canvas = document.getElementById('planCanvas');
+  const imgData = canvas.toDataURL('image/png');
+  const imgW = pageW - 30;
+  const imgH = (canvas.height / canvas.width) * imgW;
+  doc.addImage(imgData, 'PNG', 15, 30, imgW, imgH);
+
+  let y = 30 + imgH + 10;
+
+  // Room table
+  doc.setTextColor(201, 168, 76);
+  doc.setFontSize(12);
+  doc.text('Room Details', 15, y); y += 6;
+
+  const rooms = planData.rooms || [];
+  const headers = [['Room', 'Direction', 'Size (ft)', 'Area (sqft)', 'Vastu']];
+  const rows = rooms.map(r => [r.name, r.direction||'—', `${r.w}×${r.h}`, `${(r.w*r.h).toFixed(0)}`, r.vastuCompliant ? '✓ Good' : '⚠ Review']);
+
+  let rowY = y + 2;
+  doc.setFontSize(8);
+  const cols = [55, 28, 28, 30, 25];
+  const startX = 15;
+  // Header row
+  doc.setFillColor(14, 31, 53);
+  doc.rect(startX, rowY - 3, pageW - 30, 7, 'F');
+  doc.setTextColor(201, 168, 76);
+  let cx = startX;
+  headers[0].forEach((h, i) => { doc.text(h, cx + 2, rowY + 2); cx += cols[i]; });
+  rowY += 8;
+  doc.setTextColor(240, 236, 228);
+  rows.forEach((row, ri) => {
+    if (rowY > pageH - 30) { doc.addPage(); rowY = 20; doc.setFillColor(8,17,30); doc.rect(0,0,pageW,pageH,'F'); }
+    if (ri % 2 === 0) { doc.setFillColor(20, 35, 55); doc.rect(startX, rowY - 4, pageW - 30, 7, 'F'); }
+    cx = startX;
+    row.forEach((cell, i) => { doc.text(String(cell), cx + 2, rowY); cx += cols[i]; });
+    rowY += 7;
+  });
+
+  y = rowY + 8;
+
+  // Vastu score
+  if (y < pageH - 40) {
+    doc.setTextColor(201, 168, 76);
+    doc.setFontSize(12);
+    doc.text(`Vastu Score: ${planData.vastuScore}/100`, 15, y); y += 6;
+    doc.setFontSize(9);
+    doc.setTextColor(160, 180, 200);
+    const splitText = doc.splitTextToSize(planData.vastuSummary || '', pageW - 30);
+    doc.text(splitText, 15, y); y += splitText.length * 5 + 4;
+  }
+
+  // Notes
+  const notesArr = [
+    planData.ventilationNotes && `Ventilation: ${planData.ventilationNotes}`,
+    planData.lightingNotes && `Lighting: ${planData.lightingNotes}`,
+  ].filter(Boolean);
+  notesArr.forEach(note => {
+    if (y < pageH - 20) {
+      doc.setFontSize(8);
+      doc.setTextColor(122, 143, 166);
+      const st = doc.splitTextToSize(note, pageW - 30);
+      doc.text(st, 15, y); y += st.length * 4 + 3;
+    }
+  });
+
+  // Footer
+  doc.setFillColor(14, 31, 53);
+  doc.rect(0, pageH - 10, pageW, 10, 'F');
+  doc.setTextColor(122, 143, 166);
+  doc.setFontSize(7);
+  doc.text('Generated by VastuPlan AI | For reference only — consult a licensed architect for construction', pageW/2, pageH - 4, { align: 'center' });
+
+  doc.save(`VastuPlan_${planData.plotWidth}x${planData.plotDepth}_${planData.facing}.pdf`);
+}
+
+// ── HELPERS ──
+function setLoading(on) {
+  document.getElementById('generateBtn').disabled = on;
+  document.getElementById('loadingDiv').classList.toggle('active', on);
+  document.getElementById('emptyState').style.display = on ? 'none' : '';
+  if (on) {
+    document.getElementById('resultsDiv').classList.remove('active');
+    document.getElementById('emptyState').style.display = 'none';
+  }
+}
+function showError(msg) { const e = document.getElementById('errorBox'); e.style.display = 'block'; e.textContent = msg; }
+function hideError() { document.getElementById('errorBox').style.display = 'none'; }
+
+// Resize canvas on window resize
+window.addEventListener('resize', () => { if (planData) renderCanvas(planData); });
+</script>
+</body>
+</html>
