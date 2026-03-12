@@ -1,0 +1,2099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VastuPlan AI — Architectural Floor Plan Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --navy: #08111e;
+    --navy2: #0e1f35;
+    --blue: #112d4e;
+    --accent: #c9a84c;
+    --accent2: #e8c97a;
+    --white: #f0ece4;
+    --muted: #7a8fa6;
+    --grid: rgba(201,168,76,0.06);
+    --success: #4caf82;
+    --warn: #e07b3f;
+    --danger: #d94f4f;
+    --border: rgba(201,168,76,0.2);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--navy);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    background-image:
+      linear-gradient(rgba(201,168,76,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(201,168,76,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 40px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,17,30,0.9);
+    backdrop-filter: blur(10px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 38px; height: 38px;
+    background: var(--accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: var(--navy);
+  }
+  .logo-text { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--white); }
+  .logo-text span { color: var(--accent); }
+  .badge {
+    background: rgba(201,168,76,0.1); border: 1px solid var(--border);
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 11px; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase;
+    font-family: 'Space Mono', monospace;
+  }
+  .hero { text-align: center; padding: 60px 20px 40px; }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(32px, 5vw, 58px);
+    line-height: 1.15; margin-bottom: 16px;
+  }
+  .hero h1 em { color: var(--accent); font-style: normal; }
+  .hero p { color: var(--muted); font-size: 16px; max-width: 520px; margin: 0 auto 30px; line-height: 1.7; }
+  .steps-row { display: flex; justify-content: center; gap: 0; flex-wrap: wrap; margin: 0 auto; max-width: 700px; }
+  .step {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--muted); font-family: 'Space Mono', monospace;
+    padding: 0 20px;
+  }
+  .step:not(:last-child)::after { content: '→'; color: var(--border); margin-left: 20px; }
+  .step-num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: var(--navy);
+    font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .main { display: flex; gap: 24px; padding: 0 30px 60px; max-width: 1400px; margin: 0 auto; }
+  .panel {
+    background: rgba(14,31,53,0.7);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px;
+    backdrop-filter: blur(8px);
+  }
+  .form-panel { width: 380px; flex-shrink: 0; }
+  .results-panel { flex: 1; min-width: 0; }
+  .panel-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px; color: var(--accent);
+    margin-bottom: 24px; padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .panel-title svg { opacity: 0.7; }
+  .api-section {
+    background: rgba(201,168,76,0.06);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-bottom: 20px;
+  }
+  .api-section label { font-size: 11px; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; font-family: 'Space Mono', monospace; display: block; margin-bottom: 8px; }
+  .api-section input {
+    width: 100%; background: rgba(8,17,30,0.8);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; color: var(--white); font-size: 13px;
+    font-family: 'Space Mono', monospace; outline: none; transition: border-color 0.2s;
+  }
+  .api-section input:focus { border-color: var(--accent); }
+  .api-note { font-size: 10px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .api-note a { color: var(--accent); text-decoration: none; }
+  .field { margin-bottom: 18px; }
+  .field label {
+    display: block; font-size: 11px; color: var(--muted);
+    letter-spacing: 1px; text-transform: uppercase;
+    font-family: 'Space Mono', monospace; margin-bottom: 8px;
+  }
+  .field input, .field select, .field textarea {
+    width: 100%; background: rgba(8,17,30,0.6);
+    border: 1px solid rgba(201,168,76,0.15); border-radius: 8px;
+    padding: 11px 14px; color: var(--white); font-size: 14px;
+    font-family: 'DM Sans', sans-serif; outline: none;
+    transition: border-color 0.2s; appearance: none;
+  }
+  .field select { cursor: pointer; }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+  .field textarea { resize: vertical; min-height: 80px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .check-group { display: flex; flex-direction: column; gap: 8px; }
+  .check-item {
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer; padding: 8px 12px;
+    border: 1px solid rgba(201,168,76,0.1);
+    border-radius: 8px; transition: all 0.2s;
+  }
+  .check-item:hover { border-color: var(--border); background: rgba(201,168,76,0.05); }
+  .check-item input[type=checkbox] { display: none; }
+  .check-box {
+    width: 16px; height: 16px; border-radius: 4px;
+    border: 1px solid var(--muted);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.2s;
+  }
+  .check-item input:checked ~ .check-box { background: var(--accent); border-color: var(--accent); }
+  .check-item input:checked ~ .check-box::after { content: '✓'; font-size: 10px; color: var(--navy); font-weight: 700; }
+  .check-label { font-size: 13px; color: var(--white); }
+  .btn-generate {
+    width: 100%; padding: 16px; background: var(--accent);
+    border: none; border-radius: 12px;
+    color: var(--navy); font-size: 15px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: all 0.3s;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    margin-top: 8px; letter-spacing: 0.5px;
+  }
+  .btn-generate:hover { background: var(--accent2); transform: translateY(-1px); box-shadow: 0 8px 30px rgba(201,168,76,0.3); }
+  .btn-generate:active { transform: translateY(0); }
+  .btn-generate:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .loading { display: none; text-align: center; padding: 60px 20px; }
+  .loading.active { display: block; }
+  .blueprint-anim { width: 120px; height: 120px; margin: 0 auto 24px; position: relative; }
+  .blueprint-anim svg { animation: spin 2s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-family: 'Space Mono', monospace; font-size: 13px; color: var(--accent); }
+  .loading-sub { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .dots::after { content: ''; animation: dots 1.5s infinite; }
+  @keyframes dots { 0%{content:'.'} 33%{content:'..'} 66%{content:'...'} }
+  .results { display: none; }
+  .results.active { display: block; }
+  .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 10px 22px; font-size: 13px; cursor: pointer;
+    color: var(--muted); font-family: 'Space Mono', monospace;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: all 0.2s; letter-spacing: 0.5px;
+  }
+  .tab:hover { color: var(--white); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  #planCanvas {
+    width: 100%; border-radius: 12px;
+    border: 1px solid var(--border);
+    background: #fff; display: block; cursor: crosshair;
+  }
+  .canvas-wrap { position: relative; }
+  .canvas-toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .btn-sm {
+    padding: 7px 14px; border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(14,31,53,0.8);
+    color: var(--white); font-size: 12px;
+    cursor: pointer; transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-sm.primary { background: var(--accent); color: var(--navy); border-color: var(--accent); font-weight: 600; }
+  .btn-sm.primary:hover { background: var(--accent2); }
+  .btn-sm.active { border-color: var(--accent); color: var(--accent); background: rgba(201,168,76,0.1); }
+  .floor-switcher { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.1); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 14px;
+    font-family: 'Space Mono', monospace; font-size: 10px;
+    letter-spacing: 1px; text-transform: uppercase;
+    color: var(--muted); border-bottom: 1px solid var(--border);
+  }
+  td { padding: 12px 14px; border-bottom: 1px solid rgba(201,168,76,0.06); color: var(--white); }
+  tr:hover td { background: rgba(201,168,76,0.04); }
+  .vastu-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 12px; font-size: 11px;
+    font-family: 'Space Mono', monospace;
+  }
+  .vastu-ok { background: rgba(76,175,130,0.15); color: var(--success); }
+  .vastu-warn { background: rgba(224,123,63,0.15); color: var(--warn); }
+  .vastu-bad { background: rgba(217,79,79,0.15); color: var(--danger); }
+  .vastu-score-ring {
+    display: flex; align-items: center; gap: 24px;
+    background: rgba(8,17,30,0.6); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 24px; margin-bottom: 20px;
+  }
+  .ring-wrap { position: relative; width: 90px; height: 90px; flex-shrink: 0; }
+  .ring-wrap svg { transform: rotate(-90deg); }
+  .ring-score {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Playfair Display', serif; font-size: 26px; color: var(--accent);
+  }
+  .score-details h3 { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 4px; }
+  .score-details p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .vastu-rules { display: flex; flex-direction: column; gap: 10px; }
+  .vastu-rule {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 12px 16px; border-radius: 10px; font-size: 13px;
+  }
+  .vastu-rule.ok { background: rgba(76,175,130,0.08); border: 1px solid rgba(76,175,130,0.2); }
+  .vastu-rule.warn { background: rgba(224,123,63,0.08); border: 1px solid rgba(224,123,63,0.2); }
+  .vastu-rule.bad { background: rgba(217,79,79,0.08); border: 1px solid rgba(217,79,79,0.2); }
+  .rule-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .rule-text { line-height: 1.5; }
+  .rule-text strong { display: block; margin-bottom: 2px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .summary-card {
+    background: rgba(8,17,30,0.6); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; text-align: center;
+  }
+  .summary-card .val { font-family: 'Playfair Display', serif; font-size: 26px; color: var(--accent); }
+  .summary-card .lbl { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: 'Space Mono', monospace; letter-spacing: 0.5px; }
+  .notes-section { margin-top: 16px; }
+  .note-box {
+    background: rgba(8,17,30,0.5); border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0; padding: 14px 16px; margin-bottom: 10px;
+    font-size: 13px; line-height: 1.7; color: var(--muted);
+  }
+  .note-box strong { color: var(--white); display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; font-family: 'Space Mono', monospace; }
+  .compass {
+    position: absolute; top: 14px; right: 14px;
+    width: 60px; height: 60px;
+    background: rgba(8,17,30,0.85); border: 1px solid var(--border);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  }
+  .error-box {
+    background: rgba(217,79,79,0.1); border: 1px solid rgba(217,79,79,0.3);
+    border-radius: 10px; padding: 16px; margin-top: 12px;
+    font-size: 13px; color: #ef9090; line-height: 1.8; display: none; white-space: pre-line;
+  }
+  .empty-state {
+    text-align: center; padding: 80px 20px;
+    border: 1px dashed var(--border); border-radius: 16px;
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+  .empty-state h3 { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 8px; color: var(--muted); }
+  .empty-state p { font-size: 13px; color: var(--muted); opacity: 0.6; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  @media (max-width: 900px) {
+    .main { flex-direction: column; padding: 0 16px 40px; }
+    .form-panel { width: 100%; }
+    header { padding: 14px 20px; }
+    .hero { padding: 40px 16px 30px; }
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.4s ease both; }
+  .scale-bar { margin-top: 8px; display: flex; align-items: center; gap: 8px; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); }
+  .scale-line { width: 60px; height: 2px; background: var(--accent); position: relative; }
+  .scale-line::before, .scale-line::after { content: ''; width: 1px; height: 8px; background: var(--accent); position: absolute; top: -3px; }
+  .scale-line::after { right: 0; }
+  /* Debug Panel */
+  #debugPanel {
+    display: none; position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(8,12,20,0.97); border-top: 1px solid var(--border);
+    max-height: 220px; overflow-y: auto; z-index: 999;
+    font-family: 'Space Mono', monospace; font-size: 11px; padding: 12px 20px;
+  }
+  #debugPanel.visible { display: block; }
+  #debugToggle {
+    position: fixed; bottom: 12px; right: 16px; z-index: 1000;
+    background: rgba(14,31,53,0.95); border: 1px solid var(--border);
+    color: var(--muted); font-family: 'Space Mono', monospace; font-size: 10px;
+    padding: 5px 10px; border-radius: 6px; cursor: pointer;
+  }
+  .dlog-ok { color: #4caf82; } .dlog-warn { color: #e07b3f; }
+  .dlog-err { color: #d94f4f; } .dlog-info { color: #7ab8e8; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">V</div>
+    <div class="logo-text">Vastu<span>Plan</span> AI</div>
+  </div>
+  <div class="badge">v3.0 — BSP Engine</div>
+</header>
+
+<div class="hero">
+  <h1>Intelligent <em>Architectural</em><br>Plan Generator</h1>
+  <p>Generate Vastu-compliant residential floor plans with AI — optimised for cross ventilation, natural light, and space utilisation.</p>
+  <div class="steps-row">
+    <div class="step"><div class="step-num">1</div> Enter Details</div>
+    <div class="step"><div class="step-num">2</div> AI Adjacency</div>
+    <div class="step"><div class="step-num">3</div> BSP Layout</div>
+    <div class="step"><div class="step-num">4</div> Export PDF</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="panel form-panel">
+    <div class="panel-title">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      Project Details
+    </div>
+
+    <div class="api-section">
+      <label>🔑 Groq API Key <span style="background:rgba(76,175,130,0.2);color:#4caf82;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px;">FREE</span></label>
+      <input type="password" id="apiKey" placeholder="gsk_..." />
+      <div class="api-note">
+        ✅ 100% Free — No credit card needed.<br>
+        Get FREE key: <a href="https://console.groq.com" target="_blank">console.groq.com</a> → Sign up free → API Keys → Create Key → Copy &amp; paste above.
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Plot Size</label>
+      <div class="row2">
+        <div><input type="number" id="plotW" placeholder="Width (ft)" value="40" min="10" max="500"></div>
+        <div><input type="number" id="plotH" placeholder="Depth (ft)" value="60" min="10" max="500"></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Number of Floors</label>
+      <select id="floors">
+        <option value="G">Ground Floor Only</option>
+        <option value="G+1" selected>G+1 (2 Floors)</option>
+        <option value="G+2">G+2 (3 Floors)</option>
+        <option value="G+3">G+3 (4 Floors)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Drawing Scale</label>
+      <select id="drawingScale">
+        <option value="100">1:100 — Small plot / overview</option>
+        <option value="50" selected>1:50 — Standard residential</option>
+        <option value="25">1:25 — Detailed / large plot</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Family Members</label>
+      <div class="row2">
+        <div><input type="number" id="adults" placeholder="Adults" value="4" min="1" max="30"></div>
+        <div><input type="number" id="children" placeholder="Children" value="2" min="0" max="15"></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Plot Facing (Main Gate Direction)</label>
+      <select id="facing">
+        <option value="North">North — Highly Auspicious</option>
+        <option value="East">East — Excellent for Vastu</option>
+        <option value="South">South — Acceptable</option>
+        <option value="West">West — Acceptable</option>
+        <option value="Northeast">Northeast (Ishanya)</option>
+        <option value="Northwest">Northwest (Vayavya)</option>
+        <option value="Southeast">Southeast (Agneya)</option>
+        <option value="Southwest">Southwest — Avoid if possible</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Number of Bedrooms</label>
+      <select id="bedroomCount">
+        <option value="1">1 Bedroom (Bachelor/Studio)</option>
+        <option value="2">2 Bedrooms (Small family)</option>
+        <option value="3" selected>3 Bedrooms (Standard)</option>
+        <option value="4">4 Bedrooms (Large family)</option>
+        <option value="5">5 Bedrooms (Joint family)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Spaces Required</label>
+      <div class="check-group" id="roomChecks">
+        <label class="check-item"><input type="checkbox" value="Living Room" checked><div class="check-box"></div><span class="check-label">🛋 Living / Drawing Room</span></label>
+        <label class="check-item"><input type="checkbox" value="Dining Room" checked><div class="check-box"></div><span class="check-label">🍽 Dining Room</span></label>
+        <label class="check-item"><input type="checkbox" value="Kitchen" checked><div class="check-box"></div><span class="check-label">🍳 Kitchen</span></label>
+        <label class="check-item"><input type="checkbox" value="Verandah" checked><div class="check-box"></div><span class="check-label">🌿 Verandah (Front)</span></label>
+        <label class="check-item"><input type="checkbox" value="Porch"><div class="check-box"></div><span class="check-label">🏛 Porch / Portico</span></label>
+        <label class="check-item"><input type="checkbox" value="Puja Room" checked><div class="check-box"></div><span class="check-label">🪔 Puja / Mandir Room</span></label>
+        <label class="check-item"><input type="checkbox" value="Study Room"><div class="check-box"></div><span class="check-label">📚 Study / Home Office</span></label>
+        <label class="check-item"><input type="checkbox" value="Store Room"><div class="check-box"></div><span class="check-label">📦 Store Room / Utility</span></label>
+        <label class="check-item"><input type="checkbox" value="Garage"><div class="check-box"></div><span class="check-label">🚗 Garage / Car Parking</span></label>
+        <label class="check-item"><input type="checkbox" value="Servant Quarter"><div class="check-box"></div><span class="check-label">🏠 Servant Quarter</span></label>
+        <label class="check-item"><input type="checkbox" value="Garden / Courtyard"><div class="check-box"></div><span class="check-label">🌳 Garden / Courtyard</span></label>
+        <label class="check-item"><input type="checkbox" value="Terrace Garden"><div class="check-box"></div><span class="check-label">🌻 Terrace / Sit-out</span></label>
+        <label class="check-item"><input type="checkbox" value="Balcony"><div class="check-box"></div><span class="check-label">🌇 Balcony (upper floors)</span></label>
+        <label class="check-item"><input type="checkbox" value="Lift / Staircase" checked><div class="check-box"></div><span class="check-label">🪜 Staircase</span></label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Practical Requirements</label>
+      <div class="check-group">
+        <label class="check-item"><input type="checkbox" id="req_vastu" checked><div class="check-box"></div><span class="check-label">♾ Vastu Shastra compliance</span></label>
+        <label class="check-item"><input type="checkbox" id="req_ventilation" checked><div class="check-box"></div><span class="check-label">💨 Cross ventilation in all rooms</span></label>
+        <label class="check-item"><input type="checkbox" id="req_sunlight" checked><div class="check-box"></div><span class="check-label">☀️ Natural light in all rooms</span></label>
+        <label class="check-item"><input type="checkbox" id="req_privacy"><div class="check-box"></div><span class="check-label">🔒 Master bedroom privacy (away from entrance)</span></label>
+        <label class="check-item"><input type="checkbox" id="req_elderly"><div class="check-box"></div><span class="check-label">👴 Senior citizen friendly (ground floor bedroom)</span></label>
+        <label class="check-item"><input type="checkbox" id="req_accessible"><div class="check-box"></div><span class="check-label">♿ Wheelchair accessible passages (min 4ft)</span></label>
+        <label class="check-item"><input type="checkbox" id="req_rental"><div class="check-box"></div><span class="check-label">🏠 Rental unit on upper floor</span></label>
+        <label class="check-item"><input type="checkbox" id="req_solar"><div class="check-box"></div><span class="check-label">⚡ Solar panel provision on roof</span></label>
+        <label class="check-item"><input type="checkbox" id="req_rainwater"><div class="check-box"></div><span class="check-label">💧 Rainwater harvesting pit (NE)</span></label>
+        <label class="check-item"><input type="checkbox" id="req_homeshop"><div class="check-box"></div><span class="check-label">🏪 Home shop / clinic on ground floor</span></label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Additional Notes (Optional)</label>
+      <textarea id="special" placeholder="e.g. Joint family, pet area, swimming pool, home theatre, basement, underground tank location, existing tree to preserve..."></textarea>
+    </div>
+
+    <div class="field">
+      <label>Vastu Approach</label>
+      <select id="vastuLevel">
+        <option value="strict">Strict — Traditional Vastu only</option>
+        <option value="moderate" selected>Balanced — Vastu + Modern practicality</option>
+        <option value="basic">Flexible — Core Vastu guidelines only</option>
+        <option value="none">Modern — No Vastu (pure functional)</option>
+      </select>
+    </div>
+
+    <div id="errorBox" class="error-box"></div>
+
+    <button class="btn-generate" id="generateBtn" onclick="generatePlan()">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      Generate AI Floor Plan
+    </button>
+  </div>
+
+  <div class="panel results-panel" id="resultsPanel">
+    <div class="empty-state" id="emptyState">
+      <div class="icon">📐</div>
+      <h3>Your plan will appear here</h3>
+      <p>Fill in the details on the left and click Generate</p>
+    </div>
+
+    <div class="loading" id="loadingDiv">
+      <div class="blueprint-anim">
+        <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
+          <circle cx="60" cy="60" r="54" stroke="rgba(201,168,76,0.1)" stroke-width="3"/>
+          <circle cx="60" cy="60" r="54" stroke="url(#grad)" stroke-width="3" stroke-dasharray="120 220" stroke-linecap="round"/>
+          <defs><linearGradient id="grad" x1="0" y1="0" x2="120" y2="120"><stop stop-color="#c9a84c"/><stop offset="1" stop-color="#e8c97a" stop-opacity="0"/></linearGradient></defs>
+          <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="#c9a84c" font-size="22" font-family="serif">⌂</text>
+        </svg>
+      </div>
+      <div class="loading-text">Designing your floor plan<span class="dots"></span></div>
+      <div class="loading-sub" id="loadingSub">Calling AI for adjacency graph · Building BSP layout</div>
+    </div>
+
+    <div class="results" id="resultsDiv">
+      <div class="tabs">
+        <div class="tab active" onclick="showTab('plan')">📐 Floor Plan</div>
+        <div class="tab" onclick="showTab('rooms')">📋 Room Details</div>
+        <div class="tab" onclick="showTab('vastu')">🕉 Vastu Report</div>
+        <div class="tab" onclick="showTab('summary')">📊 Summary</div>
+      </div>
+
+      <div class="tab-content active fade-in" id="tab-plan">
+        <div class="canvas-toolbar">
+          <button class="btn-sm" onclick="zoomIn()">🔍+ Zoom In</button>
+          <button class="btn-sm" onclick="zoomOut()">🔍− Zoom Out</button>
+          <button class="btn-sm" onclick="resetZoom()">↺ Reset</button>
+          <button class="btn-sm primary" onclick="exportPDF()">⬇ Export PDF</button>
+        </div>
+        <div class="floor-switcher" id="floorSwitcher"></div>
+        <div class="canvas-wrap">
+          <canvas id="planCanvas" width="900" height="700"></canvas>
+          <div class="compass">
+            <svg width="40" height="40" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="19" stroke="#c9a84c" stroke-width="0.5" fill="none"/>
+              <text x="20" y="8" text-anchor="middle" fill="#c9a84c" font-size="7" font-family="monospace">N</text>
+              <text x="33" y="22" text-anchor="middle" fill="#7a8fa6" font-size="7" font-family="monospace">E</text>
+              <text x="20" y="34" text-anchor="middle" fill="#7a8fa6" font-size="7" font-family="monospace">S</text>
+              <text x="7" y="22" text-anchor="middle" fill="#7a8fa6" font-size="7" font-family="monospace">W</text>
+              <line x1="20" y1="12" x2="20" y2="20" stroke="#c9a84c" stroke-width="1.5"/>
+              <line x1="20" y1="28" x2="20" y2="20" stroke="#7a8fa6" stroke-width="1"/>
+            </svg>
+          </div>
+        </div>
+        <div class="scale-bar">
+          <div class="scale-line"></div>
+          <span id="scaleLabel">5 ft</span>
+        </div>
+        <div class="legend" id="legendDiv"></div>
+      </div>
+
+      <div class="tab-content fade-in" id="tab-rooms">
+        <table>
+          <thead>
+            <tr>
+              <th>Room</th><th>Zone</th><th>Direction</th><th>Size (ft)</th><th>Area (sq ft)</th><th>Vastu</th>
+            </tr>
+          </thead>
+          <tbody id="roomTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="tab-content fade-in" id="tab-vastu">
+        <div class="vastu-score-ring" id="vastuScoreCard"></div>
+        <div class="vastu-rules" id="vastuRules"></div>
+      </div>
+
+      <div class="tab-content fade-in" id="tab-summary">
+        <div class="summary-grid" id="summaryGrid"></div>
+        <div class="notes-section" id="notesSection"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Debug Panel -->
+<button id="debugToggle" onclick="toggleDebug()">🐛 Debug</button>
+<div id="debugPanel">
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+    <span style="color:var(--accent);font-weight:700;">VastuPlan Debug Console</span>
+    <span onclick="clearDebug()" style="cursor:pointer;color:var(--muted);">clear</span>
+  </div>
+  <div id="debugLog"></div>
+</div>
+
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════════════════════
+// VASTUPLAN AI v3.0 — BSP Layout Engine + Single AI Call Architecture
+// ══════════════════════════════════════════════════════════════════════
+
+// ── GLOBAL STATE ──
+const APP = {
+  floors: [],          // Array of floor layout data
+  currentFloor: 0,
+  zoom: 1,
+  adjacencyCache: null,
+  vastuScore: 75,
+  vastuRules: [],
+  plotW: 40,
+  plotH: 60,
+  facing: 'North',
+  drawingScale: 50,
+};
+
+// ── DEBUG LOGGER ──
+function dlog(msg, type = 'info') {
+  const el = document.getElementById('debugLog');
+  if (!el) return;
+  const time = new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  el.innerHTML += `<div class="dlog-${type}">[${time}] ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+function toggleDebug() {
+  document.getElementById('debugPanel').classList.toggle('visible');
+}
+function clearDebug() {
+  document.getElementById('debugLog').innerHTML = '';
+}
+
+// ── UI HELPERS ──
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const ids = ['plan','rooms','vastu','summary'];
+    t.classList.toggle('active', ids[i] === id);
+  });
+  document.querySelectorAll('.tab-content').forEach((c, i) => {
+    const ids = ['plan','rooms','vastu','summary'];
+    c.classList.toggle('active', ids[i] === id);
+  });
+}
+function showError(msg) {
+  const el = document.getElementById('errorBox');
+  el.textContent = msg; el.style.display = 'block';
+}
+function hideError() {
+  const el = document.getElementById('errorBox');
+  el.style.display = 'none'; el.textContent = '';
+}
+function setLoading(on, msg = '') {
+  document.getElementById('emptyState').style.display = on ? 'none' : 'none';
+  document.getElementById('loadingDiv').classList.toggle('active', on);
+  document.getElementById('resultsDiv').classList.toggle('active', !on && APP.floors.length > 0);
+  document.getElementById('generateBtn').disabled = on;
+  if (msg) document.getElementById('loadingSub').textContent = msg;
+}
+function setSubMsg(msg) {
+  document.getElementById('loadingSub').textContent = msg;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SECTION 1: VASTU KNOWLEDGE BASE
+// ══════════════════════════════════════════════════════════════════════
+const VASTU = {
+  // Zone → compass quadrant (normalised 0-1 of plot)
+  zones: {
+    public:      { xMin:0,    xMax:0.6,  yMin:0,    yMax:0.5  }, // N/NE/E
+    semipublic:  { xMin:0,    xMax:1,    yMin:0,    yMax:0.6  },
+    private:     { xMin:0.35, xMax:1,    yMin:0.35, yMax:1    }, // S/SW/W
+    service:     { xMin:0.4,  xMax:1,    yMin:0,    yMax:0.45 }, // SE kitchen
+  },
+  // Ideal compass direction per room type
+  directions: {
+    'Living Room':    'NE', 'Drawing Room': 'N',
+    'Dining Room':    'W',  'Kitchen':      'SE',
+    'Master Bedroom': 'SW', 'Bedroom':      'S',
+    'Bedroom 2':      'S',  'Bedroom 3':    'W',
+    'Bedroom 4':      'NW', 'Bedroom 5':    'N',
+    'Puja Room':      'NE', 'Study Room':   'W',
+    'Bathroom':       'NW', 'Master Bathroom': 'SE',
+    'Common Bathroom':'NW', 'Attached Bathroom':'SE',
+    'Toilet':         'NW', 'Store Room':   'NW',
+    'Garage':         'NW', 'Servant Quarter':'NW',
+    'Staircase':      'S',  'Verandah':     'N',
+    'Porch':          'N',  'Balcony':      'NE',
+    'Garden / Courtyard':'NE',
+  },
+  // Room standard size ranges [minW, minH, preferW, preferH] in feet
+  sizes: {
+    'Living Room':       [12, 12, 16, 14],
+    'Drawing Room':      [12, 12, 16, 14],
+    'Dining Room':       [10, 10, 14, 12],
+    'Kitchen':           [8,  8,  12, 10],
+    'Master Bedroom':    [12, 12, 14, 14],
+    'Bedroom':           [10, 10, 12, 12],
+    'Bedroom 2':         [10, 10, 12, 12],
+    'Bedroom 3':         [10, 10, 12, 12],
+    'Bedroom 4':         [10, 10, 12, 12],
+    'Bedroom 5':         [10, 10, 11, 11],
+    'Master Bathroom':   [5,  7,  6,  8 ],
+    'Attached Bathroom': [5,  7,  5,  8 ],
+    'Common Bathroom':   [4,  6,  5,  7 ],
+    'Toilet':            [3,  5,  4,  6 ],
+    'Puja Room':         [5,  5,  7,  7 ],
+    'Study Room':        [8,  8,  10, 10],
+    'Store Room':        [5,  5,  7,  7 ],
+    'Garage':            [9,  18, 12, 20],
+    'Servant Quarter':   [8,  8,  10, 10],
+    'Staircase':         [6,  8,  8,  10],
+    'Corridor':          [4,  4,  4,  4 ],
+    'Verandah':          [8,  5,  14, 6 ],
+    'Porch':             [8,  5,  12, 6 ],
+    'Balcony':           [6,  4,  10, 5 ],
+    'Garden / Courtyard':[8,  8,  12, 12],
+  },
+  // Zone classifications
+  zoneOf: (name) => {
+    const n = name.toLowerCase();
+    if (n.includes('living') || n.includes('drawing') || n.includes('dining') ||
+        n.includes('verandah') || n.includes('porch') || n.includes('garden') || n.includes('garage'))
+      return 'public';
+    if (n.includes('kitchen') || n.includes('store') || n.includes('servant') ||
+        n.includes('toilet') || n.includes('bathroom') || n.includes('stair') ||
+        n.includes('utility') || n.includes('garage'))
+      return 'service';
+    if (n.includes('puja') || n.includes('study') || n.includes('balcony'))
+      return 'semipublic';
+    return 'private'; // bedrooms
+  },
+  // Priority for layout (lower = place first = most space)
+  priorityOf: (name) => {
+    const n = name.toLowerCase();
+    if (n.includes('master')) return 1;
+    if (n.includes('living') || n.includes('drawing')) return 2;
+    if (n.includes('kitchen') || n.includes('dining')) return 3;
+    if (n.includes('bedroom')) return 4;
+    if (n.includes('stair')) return 5;
+    if (n.includes('bathroom') || n.includes('toilet')) return 6;
+    if (n.includes('puja')) return 7;
+    if (n.includes('study')) return 8;
+    if (n.includes('verandah') || n.includes('porch')) return 9;
+    return 10;
+  },
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// SECTION 2: COMPACT AI PROMPT + SINGLE CALL
+// ══════════════════════════════════════════════════════════════════════
+function buildCompactPrompt(input) {
+  const { rooms, plotW, plotH, facing, vastuLevel, bedCount } = input;
+  const roomList = rooms.map(r => r.name).join(', ');
+
+  return `You are a Vastu architect. Given these rooms for a ${plotW}x${plotH}ft ${facing}-facing plot, return ONLY valid JSON with no markdown.
+
+Vastu level: ${vastuLevel}
+Rooms: ${roomList}
+Bedrooms: ${bedCount}
+
+Rules:
+- Puja/NE, Kitchen/SE, MasterBed/SW, Living/NE, Bath/NW or SE
+- zone: "public"|"semipublic"|"private"|"service"
+- direction: "N"|"NE"|"E"|"SE"|"S"|"SW"|"W"|"NW"
+- adjacent: array of room names that must share a wall
+- priority: 1(highest) to 10(lowest)
+- vastuOk: true/false per room
+
+Return EXACTLY this JSON shape:
+{"rooms":[{"name":"Living Room","zone":"public","direction":"NE","adjacent":["Dining Room","Verandah"],"priority":2,"vastuOk":true}],"vastuScore":80,"notes":"brief note"}`;
+}
+
+// ── SAFE JSON PARSER ──
+function safeParseJSON(raw) {
+  dlog(`Raw AI response length: ${raw.length} chars`, 'info');
+  let text = raw;
+  // Strip markdown fences
+  text = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '');
+  // Extract first { ... }
+  const start = text.indexOf('{');
+  const end   = text.lastIndexOf('}');
+  if (start === -1 || end === -1) {
+    dlog('No JSON object found in response', 'warn');
+    return null;
+  }
+  const jsonStr = text.slice(start, end + 1);
+  try {
+    const parsed = JSON.parse(jsonStr);
+    dlog(`Parsed JSON: ${parsed.rooms?.length ?? 0} rooms`, 'ok');
+    return parsed;
+  } catch (e) {
+    dlog(`JSON parse error: ${e.message}`, 'err');
+    // Attempt to repair: remove trailing commas
+    try {
+      const repaired = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+      const parsed = JSON.parse(repaired);
+      dlog('Repaired JSON parse success', 'ok');
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+}
+
+// ── GROQ API CALL (single, robust) ──
+async function callGroqAPI(apiKey, prompt) {
+  dlog('Calling Groq API...', 'info');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 1200,
+        temperature: 0.2,
+        messages: [
+          { role: 'system', content: 'You are a Vastu architect assistant. Always respond with valid JSON only. No markdown, no explanation.' },
+          { role: 'user', content: prompt },
+        ],
+      }),
+    });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      const errText = await res.text();
+      dlog(`API error ${res.status}: ${errText.slice(0,200)}`, 'err');
+      if (res.status === 401) throw new Error('Invalid API key. Check your Groq key at console.groq.com');
+      if (res.status === 429) throw new Error('Rate limited. Wait 10 seconds and try again.');
+      throw new Error(`API error ${res.status}`);
+    }
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    dlog(`AI response received (${content.length} chars)`, 'ok');
+    return content;
+  } catch (e) {
+    clearTimeout(timeout);
+    if (e.name === 'AbortError') throw new Error('Request timed out. Check internet connection.');
+    throw e;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SECTION 3: FALLBACK VASTU TEMPLATE (no AI needed)
+// ══════════════════════════════════════════════════════════════════════
+function getVastuFallback(roomNames, facing, bedCount) {
+  dlog('Using deterministic Vastu fallback template', 'warn');
+  // Static adjacency and zone map based on Vastu rules
+  const adjacencyMap = {
+    'Living Room':    ['Dining Room', 'Verandah', 'Puja Room'],
+    'Dining Room':    ['Kitchen', 'Living Room'],
+    'Kitchen':        ['Dining Room', 'Store Room'],
+    'Master Bedroom': ['Master Bathroom'],
+    'Bedroom 2':      ['Attached Bathroom', 'Common Bathroom'],
+    'Bedroom 3':      ['Common Bathroom'],
+    'Bedroom 4':      ['Common Bathroom'],
+    'Bedroom 5':      ['Common Bathroom'],
+    'Puja Room':      ['Living Room'],
+    'Study Room':     ['Bedroom 2'],
+    'Staircase':      ['Corridor'],
+    'Verandah':       ['Living Room'],
+    'Porch':          ['Verandah'],
+  };
+  const rooms = roomNames.map((name, i) => ({
+    name,
+    zone: VASTU.zoneOf(name),
+    direction: VASTU.directions[name] || 'N',
+    adjacent: adjacencyMap[name] || [],
+    priority: VASTU.priorityOf(name),
+    vastuOk: true,
+  }));
+  const score = 72;
+  const notes = 'Fallback Vastu template — AI unavailable. Classic room placement applied.';
+  return { rooms, vastuScore: score, notes };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SECTION 4: FLOOR DISTRIBUTION LOGIC
+// ══════════════════════════════════════════════════════════════════════
+function distributeFloors(allRooms, floorsVal, bedCount, selectedSpaces, elderlyReq) {
+  const floorNames = {
+    'G':   ['Ground Floor'],
+    'G+1': ['Ground Floor', 'First Floor'],
+    'G+2': ['Ground Floor', 'First Floor', 'Second Floor'],
+    'G+3': ['Ground Floor', 'First Floor', 'Second Floor', 'Third Floor'],
+  }[floorsVal] || ['Ground Floor'];
+
+  const beds = allRooms.filter(r => r.name.toLowerCase().includes('bed') ||
+                                    r.name.toLowerCase().includes('master'));
+  const publicRooms = allRooms.filter(r => ['Living Room','Drawing Room','Dining Room','Kitchen',
+    'Verandah','Porch','Puja Room','Garage','Garden / Courtyard'].includes(r.name));
+  const serviceRooms = allRooms.filter(r => ['Store Room','Servant Quarter','Staircase',
+    'Lift / Staircase'].includes(r.name));
+  const upperRooms = allRooms.filter(r => ['Study Room','Balcony','Terrace Garden'].includes(r.name));
+
+  // Civil engineering washroom rules
+  const washroomSets = buildWashroomSets(beds.length, parseFloat(APP.plotW));
+
+  const floors = floorNames.map((name, fi) => {
+    const isGround = fi === 0;
+    const isTop    = fi === floorNames.length - 1;
+    const bedsPerFloor = Math.ceil(beds.length / floorNames.length);
+    const bedSlice = beds.slice(fi * bedsPerFloor, (fi + 1) * bedsPerFloor);
+
+    let floorRooms = [];
+    if (isGround) {
+      floorRooms = [...publicRooms];
+      // Always include staircase if multi-floor
+      const stair = serviceRooms.find(r => r.name.toLowerCase().includes('stair'));
+      if (stair && floorNames.length > 1) floorRooms.push(stair);
+      // Elder bedroom on ground if requested
+      const masterBed = beds.find(r => r.name === 'Master Bedroom');
+      if (elderlyReq && masterBed) {
+        floorRooms.push(masterBed);
+        floorRooms.push(...washroomSets[0]);
+        // Add servant quarter
+        const sq = serviceRooms.find(r => r.name === 'Servant Quarter');
+        if (sq) floorRooms.push(sq);
+        floorRooms.push(...serviceRooms.filter(r => r.name === 'Store Room'));
+      } else {
+        // All bedrooms on ground if single floor
+        if (floorNames.length === 1) {
+          floorRooms.push(...beds);
+          floorRooms.push(...washroomSets[0]);
+          floorRooms.push(...serviceRooms);
+        } else {
+          // G+n: master on upper; but 1 bedroom on ground if only 1 floor
+          const gBed = bedSlice[0] ? [bedSlice[0]] : [];
+          floorRooms.push(...gBed);
+          if (gBed.length > 0) floorRooms.push(...washroomSets[0]);
+          floorRooms.push(...serviceRooms.filter(r => !r.name.toLowerCase().includes('stair')));
+        }
+      }
+    } else if (isTop && floorNames.length > 2) {
+      floorRooms = [...bedSlice];
+      floorRooms.push(...upperRooms);
+      if (bedSlice.length > 0) floorRooms.push(...(washroomSets[fi] || washroomSets[0]));
+      const stair = serviceRooms.find(r => r.name.toLowerCase().includes('stair'));
+      if (stair) floorRooms.push(stair);
+    } else {
+      floorRooms = [...bedSlice];
+      floorRooms.push(...upperRooms.filter(r => !['Terrace Garden'].includes(r.name)));
+      if (bedSlice.length > 0) floorRooms.push(...(washroomSets[fi] || washroomSets[0]));
+      const stair = serviceRooms.find(r => r.name.toLowerCase().includes('stair'));
+      if (stair) floorRooms.push(stair);
+    }
+
+    // De-dupe
+    const seen = new Set();
+    floorRooms = floorRooms.filter(r => {
+      if (seen.has(r.name)) return false;
+      seen.add(r.name); return true;
+    });
+
+    return { name, rooms: floorRooms };
+  });
+
+  return floors;
+}
+
+// Civil engineering washroom rules — returns sets per floor
+function buildWashroomSets(bedCount, plotW) {
+  const ws = (name, type) => ({
+    name,
+    zone: 'service',
+    direction: type === 'master' ? 'SE' : 'NW',
+    adjacent: type === 'master' ? ['Master Bedroom'] :
+              type === 'attached' ? [] : [],
+    priority: 6,
+    vastuOk: true,
+    _washroomType: type,
+  });
+
+  if (bedCount <= 1) return [[ws('Attached Bathroom', 'attached')]];
+  if (bedCount === 2) return [
+    [ws('Master Bathroom', 'master'), ws('Common Bathroom', 'common')],
+    [ws('Master Bathroom', 'master'), ws('Common Bathroom', 'common')],
+  ];
+  if (bedCount === 3) {
+    const set = [ws('Master Bathroom', 'master'), ws('Common Bathroom', 'common')];
+    if (plotW >= 28) set.push(ws('Bathroom 2', 'attached'));
+    return [set, set, set];
+  }
+  // 4-5 bedrooms
+  const set = [ws('Master Bathroom', 'master'), ws('Common Bathroom', 'common'),
+               ws('Bathroom 2', 'attached')];
+  if (plotW >= 35) set.push(ws('Bathroom 3', 'attached'));
+  return [set, set, set, set];
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SECTION 5: BSP DETERMINISTIC LAYOUT ENGINE
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * Rect: { x, y, w, h } — all in feet, relative to plot origin (0,0)
+ * Room: { name, zone, direction, priority, w, h, x, y, floor }
+ */
+
+// Step 1: Assign preferred sizes from Vastu knowledge
+function assignRoomSizes(rooms, plotW, plotH) {
+  const totalArea = plotW * plotH;
+  const usableArea = totalArea * 0.85; // 15% for walls/circulation
+
+  // Sum of preferred areas
+  let prefSum = rooms.reduce((s, r) => {
+    const [,, pw, ph] = VASTU.sizes[r.name] || [8, 8, 10, 10];
+    return s + pw * ph;
+  }, 0);
+
+  const scaleFactor = Math.min(1.2, usableArea / (prefSum || 1));
+
+  return rooms.map(r => {
+    const [minW, minH, prefW, prefH] = VASTU.sizes[r.name] || [8, 8, 10, 10];
+    let w = Math.max(minW, Math.round(prefW * Math.sqrt(scaleFactor) * 2) / 2);
+    let h = Math.max(minH, Math.round(prefH * Math.sqrt(scaleFactor) * 2) / 2);
+    // Clamp to 70% of plot dimension
+    w = Math.min(w, plotW * 0.7);
+    h = Math.min(h, plotH * 0.7);
+    return { ...r, w, h };
+  });
+}
+
+// Step 2: Vastu zone rectangles on plot
+// Maps zone to plot quadrant based on facing direction
+function getVastuZoneRects(plotW, plotH, facing) {
+  const f = facing.toLowerCase();
+  // NE = top-left in our canvas (North = top, East = right)
+  // x increases East, y increases South
+  const W = plotW, H = plotH;
+  const zones = {};
+
+  if (f.includes('north') || f.includes('east')) {
+    // Entry from North or East — public zone near entry
+    zones.public      = { x: 0,       y: 0,       w: W * 0.55, h: H * 0.45 };
+    zones.semipublic  = { x: W * 0.4,  y: 0,       w: W * 0.6,  h: H * 0.5  };
+    zones.service     = { x: W * 0.45, y: 0,       w: W * 0.55, h: H * 0.45 }; // SE
+    zones.private     = { x: W * 0.3,  y: H * 0.4, w: W * 0.7,  h: H * 0.6  }; // SW/S/W
+  } else {
+    // South/West entry
+    zones.public      = { x: 0,       y: H * 0.55, w: W * 0.55, h: H * 0.45 };
+    zones.semipublic  = { x: 0,       y: H * 0.4,  w: W * 0.6,  h: H * 0.6  };
+    zones.service     = { x: W * 0.45, y: H * 0.55, w: W * 0.55, h: H * 0.45 };
+    zones.private     = { x: W * 0.3,  y: 0,       w: W * 0.7,  h: H * 0.55 };
+  }
+  zones.default = { x: 0, y: 0, w: W, h: H };
+  return zones;
+}
+
+// Step 3: BSP Space Partitioning
+// Split a rectangle recursively to accommodate rooms
+function bspPartition(rect, rooms) {
+  if (rooms.length === 0) return [];
+  if (rooms.length === 1) {
+    const r = rooms[0];
+    return [{ ...r, x: rect.x, y: rect.y, w: rect.w, h: rect.h }];
+  }
+
+  // Sort by priority then area (larger first)
+  const sorted = [...rooms].sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return (b.w * b.h) - (a.w * a.h);
+  });
+
+  // Decide split direction — prefer to split along longer axis
+  const splitH = rect.w >= rect.h;
+  const half = Math.floor(sorted.length / 2);
+  const group1 = sorted.slice(0, half + (sorted.length % 2));
+  const group2 = sorted.slice(half + (sorted.length % 2));
+
+  let area1 = group1.reduce((s, r) => s + r.w * r.h, 0);
+  let area2 = group2.reduce((s, r) => s + r.w * r.h, 0);
+  const totalArea = area1 + area2 || 1;
+
+  let rect1, rect2;
+  if (splitH) {
+    const split = Math.round((rect.w * area1 / totalArea) * 2) / 2;
+    const s = Math.max(Math.min(rect.w - 4, split), 4);
+    rect1 = { x: rect.x,     y: rect.y, w: s,          h: rect.h };
+    rect2 = { x: rect.x + s, y: rect.y, w: rect.w - s, h: rect.h };
+  } else {
+    const split = Math.round((rect.h * area1 / totalArea) * 2) / 2;
+    const s = Math.max(Math.min(rect.h - 4, split), 4);
+    rect1 = { x: rect.x, y: rect.y,     w: rect.w, h: s          };
+    rect2 = { x: rect.x, y: rect.y + s, w: rect.w, h: rect.h - s };
+  }
+
+  return [
+    ...bspPartition(rect1, group1),
+    ...bspPartition(rect2, group2),
+  ];
+}
+
+// Step 4: Apply Vastu directional bias — nudge rooms toward preferred zone
+function applyVastuBias(rooms, plotW, plotH, facing) {
+  const zoneRects = getVastuZoneRects(plotW, plotH, facing);
+  const result = bspPartition({ x: 0, y: 0, w: plotW, h: plotH }, rooms);
+
+  // Post-process: snap bathrooms to bedroom edges
+  result.forEach(r => {
+    if (r._washroomType === 'master') {
+      const master = result.find(m => m.name === 'Master Bedroom');
+      if (master) {
+        // Place right of master bed if room
+        const rightX = master.x + master.w;
+        if (rightX + r.w <= plotW) {
+          r.x = rightX; r.y = master.y;
+          r.h = Math.min(r.h, master.h);
+        } else {
+          // Place below
+          r.x = master.x; r.y = master.y + master.h;
+          r.w = Math.min(r.w, master.w);
+        }
+      }
+    }
+  });
+
+  // Clamp all to plot boundary
+  result.forEach(r => {
+    r.x = Math.max(0, Math.min(r.x, plotW - r.w));
+    r.y = Math.max(0, Math.min(r.y, plotH - r.h));
+    r.w = Math.max(4, Math.min(r.w, plotW - r.x));
+    r.h = Math.max(4, Math.min(r.h, plotH - r.y));
+  });
+
+  return result;
+}
+
+// Step 5: Add verandah/porch at entry based on facing
+function injectEntrySpaces(rooms, plotW, plotH, facing) {
+  const hasVerandah = rooms.some(r => r.name === 'Verandah');
+  const hasPorch    = rooms.some(r => r.name === 'Porch');
+  if (!hasVerandah && !hasPorch) return rooms;
+
+  const f = facing.toLowerCase();
+  return rooms.map(r => {
+    if (r.name === 'Verandah' || r.name === 'Porch') {
+      if (f.includes('north')) {
+        return { ...r, x: plotW * 0.1, y: 0, w: plotW * 0.6, h: Math.min(r.h, 8) };
+      } else if (f.includes('south')) {
+        return { ...r, x: plotW * 0.1, y: plotH - 8, w: plotW * 0.6, h: Math.min(r.h, 8) };
+      } else if (f.includes('east')) {
+        return { ...r, x: plotW - 8, y: plotH * 0.1, w: Math.min(r.w, 8), h: plotH * 0.6 };
+      } else {
+        return { ...r, x: 0, y: plotH * 0.1, w: Math.min(r.w, 8), h: plotH * 0.6 };
+      }
+    }
+    return r;
+  });
+}
+
+// Step 6: Fix overlaps with iterative push
+function resolveOverlaps(rooms, plotW, plotH) {
+  const PASSES = 5;
+  for (let pass = 0; pass < PASSES; pass++) {
+    for (let i = 0; i < rooms.length; i++) {
+      for (let j = i + 1; j < rooms.length; j++) {
+        const a = rooms[i], b = rooms[j];
+        const ax2 = a.x + a.w, ay2 = a.y + a.h;
+        const bx2 = b.x + b.w, by2 = b.y + b.h;
+        const overlapX = Math.min(ax2, bx2) - Math.max(a.x, b.x);
+        const overlapY = Math.min(ay2, by2) - Math.max(a.y, b.y);
+        if (overlapX > 0.5 && overlapY > 0.5) {
+          // Push smaller room
+          if (overlapX < overlapY) {
+            b.x = Math.min(b.x + overlapX, plotW - b.w);
+          } else {
+            b.y = Math.min(b.y + overlapY, plotH - b.h);
+          }
+          b.x = Math.max(0, Math.min(b.x, plotW - b.w));
+          b.y = Math.max(0, Math.min(b.y, plotH - b.h));
+        }
+      }
+    }
+  }
+  return rooms;
+}
+
+// Step 7: Snap shared walls (wall sharing optimisation)
+function snapSharedWalls(rooms) {
+  const SNAP = 1.0; // ft
+  for (let i = 0; i < rooms.length; i++) {
+    for (let j = i + 1; j < rooms.length; j++) {
+      const a = rooms[i], b = rooms[j];
+      // Snap vertical walls
+      if (Math.abs((a.x + a.w) - b.x) < SNAP) b.x = a.x + a.w;
+      if (Math.abs(a.x - (b.x + b.w)) < SNAP) a.x = b.x + b.w;
+      // Snap horizontal walls
+      if (Math.abs((a.y + a.h) - b.y) < SNAP) b.y = a.y + a.h;
+      if (Math.abs(a.y - (b.y + b.h)) < SNAP) a.y = b.y + b.h;
+    }
+  }
+  return rooms;
+}
+
+// Step 8: Add stair core placement
+function placeStaircase(rooms, plotW, plotH, facing, floorIndex, totalFloors) {
+  const stair = rooms.find(r => r.name === 'Staircase' || r.name === 'Lift / Staircase');
+  if (!stair || totalFloors <= 1) return rooms;
+  // Vastu: staircase in S or SW
+  const f = facing.toLowerCase();
+  if (f.includes('north')) {
+    stair.x = plotW * 0.35; stair.y = plotH - stair.h;
+  } else if (f.includes('east')) {
+    stair.x = 0; stair.y = plotH - stair.h;
+  } else {
+    stair.x = plotW * 0.35; stair.y = 0;
+  }
+  stair.x = Math.max(0, Math.min(stair.x, plotW - stair.w));
+  stair.y = Math.max(0, Math.min(stair.y, plotH - stair.h));
+  return rooms;
+}
+
+// ── MASTER LAYOUT FUNCTION ──
+function runLayoutEngine(floorRooms, plotW, plotH, facing, floorIndex, totalFloors, adjacencyData) {
+  dlog(`Layout engine: ${floorRooms.length} rooms on floor ${floorIndex}`, 'info');
+
+  // Merge AI adjacency data with room objects
+  let rooms = floorRooms.map(r => {
+    const aiRoom = adjacencyData?.rooms?.find(ar =>
+      ar.name.toLowerCase() === r.name.toLowerCase()
+    );
+    return {
+      ...r,
+      zone:      aiRoom?.zone      || VASTU.zoneOf(r.name),
+      direction: aiRoom?.direction || VASTU.directions[r.name] || 'N',
+      priority:  aiRoom?.priority  || VASTU.priorityOf(r.name),
+      vastuOk:   aiRoom?.vastuOk   ?? true,
+      adjacent:  aiRoom?.adjacent  || [],
+    };
+  });
+
+  // Assign sizes
+  rooms = assignRoomSizes(rooms, plotW, plotH);
+
+  // BSP layout with Vastu bias
+  rooms = applyVastuBias(rooms, plotW, plotH, facing);
+
+  // Inject entry spaces at correct position
+  rooms = injectEntrySpaces(rooms, plotW, plotH, facing);
+
+  // Place staircase
+  rooms = placeStaircase(rooms, plotW, plotH, facing, floorIndex, totalFloors);
+
+  // Snap walls
+  rooms = snapSharedWalls(rooms);
+
+  // Resolve overlaps
+  rooms = resolveOverlaps(rooms, plotW, plotH);
+
+  // Final clamp
+  rooms.forEach(r => {
+    r.x = Math.max(0, Math.min(r.x, plotW - Math.max(r.w, 4)));
+    r.y = Math.max(0, Math.min(r.y, plotH - Math.max(r.h, 4)));
+    r.w = Math.max(4, r.w);
+    r.h = Math.max(4, r.h);
+  });
+
+  dlog(`Layout done: ${rooms.length} rooms placed`, 'ok');
+  return rooms;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SECTION 6: MAIN GENERATE ORCHESTRATOR
+// ══════════════════════════════════════════════════════════════════════
+async function generatePlan() {
+  hideError();
+
+  const apiKey   = document.getElementById('apiKey').value.trim();
+  const plotW    = parseFloat(document.getElementById('plotW').value) || 40;
+  const plotH    = parseFloat(document.getElementById('plotH').value) || 60;
+  const floorsVal = document.getElementById('floors').value;
+  const facing   = document.getElementById('facing').value;
+  const vastuLevel = document.getElementById('vastuLevel').value;
+  const bedCount = parseInt(document.getElementById('bedroomCount').value) || 3;
+  const drawingScale = parseInt(document.getElementById('drawingScale').value) || 50;
+  const adults   = parseInt(document.getElementById('adults').value) || 4;
+  const children = parseInt(document.getElementById('children').value) || 2;
+  const elderlyReq = document.getElementById('req_elderly')?.checked || false;
+
+  if (!apiKey) { showError('⚠ Please enter your Groq API key.'); return; }
+  if (plotW < 10 || plotH < 10) { showError('⚠ Plot size must be at least 10×10 ft.'); return; }
+
+  // Store in APP
+  APP.plotW = plotW; APP.plotH = plotH;
+  APP.facing = facing; APP.drawingScale = drawingScale;
+
+  const selectedSpaces = [...document.querySelectorAll('#roomChecks input:checked')].map(c => c.value);
+
+  // Build full room list
+  const bedroomList = [{ name: 'Master Bedroom' }];
+  for (let i = 2; i <= bedCount; i++) bedroomList.push({ name: `Bedroom ${i}` });
+
+  const spaceRooms = selectedSpaces.map(s => ({ name: s }));
+  const allRooms = [...bedroomList, ...spaceRooms];
+
+  dlog(`Input: ${plotW}x${plotH}ft, ${floorsVal}, ${facing}, ${bedCount}BR, ${allRooms.length} rooms`, 'info');
+
+  setLoading(true, 'Step 1/3 · AI generating adjacency graph...');
+  document.getElementById('emptyState').style.display = 'none';
+
+  // ── SINGLE AI CALL ──
+  let adjacencyData = null;
+  try {
+    const prompt = buildCompactPrompt({ rooms: allRooms, plotW, plotH, facing, vastuLevel, bedCount });
+    dlog(`Prompt size: ${prompt.length} chars`, 'info');
+    const rawResponse = await callGroqAPI(apiKey, prompt);
+    adjacencyData = safeParseJSON(rawResponse);
+    if (!adjacencyData) {
+      dlog('AI parse failed → using fallback', 'warn');
+    } else {
+      APP.adjacencyCache = adjacencyData;
+      APP.vastuScore = adjacencyData.vastuScore || 75;
+      APP.vastuRules = adjacencyData.notes ? [{ text: adjacencyData.notes, status: 'ok' }] : [];
+      dlog(`Adjacency graph: ${adjacencyData.rooms?.length} rooms, score: ${adjacencyData.vastuScore}`, 'ok');
+    }
+  } catch (e) {
+    dlog(`AI call failed: ${e.message}`, 'err');
+    setLoading(false);
+    showError(`API Error: ${e.message}`);
+    return;
+  }
+
+  if (!adjacencyData) {
+    adjacencyData = getVastuFallback(allRooms.map(r => r.name), facing, bedCount);
+    APP.vastuScore = adjacencyData.vastuScore;
+  }
+
+  setSubMsg('Step 2/3 · Distributing rooms across floors...');
+
+  // ── FLOOR DISTRIBUTION ──
+  const floorDefs = distributeFloors(
+    allRooms.map(r => ({ ...r, zone: VASTU.zoneOf(r.name), priority: VASTU.priorityOf(r.name), direction: VASTU.directions[r.name] || 'N', vastuOk: true, adjacent: [] })),
+    floorsVal, bedCount, selectedSpaces, elderlyReq
+  );
+
+  dlog(`Floors: ${floorDefs.map(f => `${f.name}(${f.rooms.length})`).join(', ')}`, 'info');
+
+  setSubMsg('Step 3/3 · Running BSP layout engine...');
+
+  // ── RUN LAYOUT PER FLOOR ──
+  APP.floors = floorDefs.map((fd, fi) => {
+    const rooms = runLayoutEngine(
+      fd.rooms, plotW, plotH, facing, fi, floorDefs.length, adjacencyData
+    );
+    return { name: fd.name, rooms };
+  });
+
+  APP.currentFloor = 0;
+
+  setLoading(false);
+  document.getElementById('resultsDiv').classList.add('active');
+
+  // ── RENDER ──
+  buildFloorSwitcher();
+  renderFloor(0);
+  buildRoomTable();
+  buildVastuReport(adjacencyData);
+  buildSummary(plotW, plotH, floorsVal, bedCount, adults + children);
+  buildLegend();
+  updateScaleBar(drawingScale, plotW);
+
+  dlog('Plan generation complete ✓', 'ok');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SECTION 7: CANVAS RENDERING ENGINE
+// ══════════════════════════════════════════════════════════════════════
+
+const ROOM_PALETTE = {
+  'Living Room':       { fill: '#F0EFE9', border: '#c5bfb0' },
+  'Drawing Room':      { fill: '#F0EFE9', border: '#c5bfb0' },
+  'Dining Room':       { fill: '#F5F0EC', border: '#cfc4b2' },
+  'Kitchen':           { fill: '#F5F0E8', border: '#d0c4a8' },
+  'Master Bedroom':    { fill: '#EBE9F0', border: '#b8b0cc' },
+  'Bedroom 2':         { fill: '#EEF0F5', border: '#b5bbd0' },
+  'Bedroom 3':         { fill: '#EEF0F5', border: '#b5bbd0' },
+  'Bedroom 4':         { fill: '#EEF0F5', border: '#b5bbd0' },
+  'Bedroom 5':         { fill: '#EEF0F5', border: '#b5bbd0' },
+  'Master Bathroom':   { fill: '#E8F0F5', border: '#9ab8d0' },
+  'Attached Bathroom': { fill: '#E8F0F5', border: '#9ab8d0' },
+  'Bathroom 2':        { fill: '#E8F0F5', border: '#9ab8d0' },
+  'Bathroom 3':        { fill: '#E8F0F5', border: '#9ab8d0' },
+  'Common Bathroom':   { fill: '#D6EAF8', border: '#7aaac8' },
+  'Toilet':            { fill: '#D6EAF8', border: '#7aaac8' },
+  'Puja Room':         { fill: '#F5EEF5', border: '#c0a8c0' },
+  'Study Room':        { fill: '#EEF5EE', border: '#a8c8a8' },
+  'Store Room':        { fill: '#F0F0EC', border: '#b8b8b0' },
+  'Garage':            { fill: '#EBEBEB', border: '#b0b0b0' },
+  'Servant Quarter':   { fill: '#F0EEE8', border: '#c0b8a8' },
+  'Staircase':         { fill: '#EEF0EE', border: '#b0b8b0' },
+  'Lift / Staircase':  { fill: '#EEF0EE', border: '#b0b8b0' },
+  'Verandah':          { fill: '#F8F6E8', border: '#d0c898' },
+  'Porch':             { fill: '#F8F6E8', border: '#d0c898' },
+  'Balcony':           { fill: '#F0F5E8', border: '#b0c8a0' },
+  'Garden / Courtyard':{ fill: '#E8F5E8', border: '#98c898' },
+  'Terrace Garden':    { fill: '#E8F5E8', border: '#98c898' },
+  'Corridor':          { fill: '#F5F5F2', border: '#c0c0bc' },
+  'default':           { fill: '#F2F2F0', border: '#c0c0bc' },
+};
+
+function getRoomPalette(name) {
+  return ROOM_PALETTE[name] || ROOM_PALETTE.default;
+}
+
+function ftToFtIn(val) {
+  const ft = Math.floor(val);
+  const inches = Math.round((val - ft) * 12);
+  return inches > 0 ? `${ft}'-${inches}"` : `${ft}'-0"`;
+}
+
+function getCompassDir(room, plotW, plotH) {
+  const cx = room.x + room.w / 2;
+  const cy = room.y + room.h / 2;
+  const nx = cx / plotW, ny = cy / plotH;
+  // y=0 is North (top), y=1 is South
+  if (ny < 0.33) {
+    if (nx < 0.33) return 'NW';
+    if (nx > 0.67) return 'NE';
+    return 'N';
+  } else if (ny > 0.67) {
+    if (nx < 0.33) return 'SW';
+    if (nx > 0.67) return 'SE';
+    return 'S';
+  } else {
+    if (nx < 0.33) return 'W';
+    if (nx > 0.67) return 'E';
+    return 'C';
+  }
+}
+
+let _renderState = { data: null, scale: 6, P: 80 };
+
+function renderFloor(fi) {
+  APP.currentFloor = fi;
+  const floor = APP.floors[fi];
+  if (!floor) return;
+
+  const canvas = document.getElementById('planCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const scale = 600 / Math.max(APP.plotW, APP.plotH); // px/ft auto
+  const P = 80; // padding px
+  _renderState = { data: floor, scale, P };
+
+  canvas.width  = Math.round(APP.plotW * scale) + P * 2 + 60;
+  canvas.height = Math.round(APP.plotH * scale) + P * 2 + 80;
+
+  drawFloorPlan(ctx, floor, APP.plotW, APP.plotH, scale, P, APP.facing, APP.drawingScale, fi, APP.floors.length);
+
+  // Update floor switcher highlight
+  document.querySelectorAll('.floor-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === fi);
+  });
+}
+
+function drawFloorPlan(ctx, floor, plotW, plotH, scale, P, facing, drawingScale, floorIdx, totalFloors) {
+  const pw = plotW * scale;
+  const ph = plotH * scale;
+  const OW = 0.75 * scale; // outer wall 9"
+  const IW = 0.42 * scale; // inner wall 5"
+
+  // ── WHITE PAPER ──
+  ctx.fillStyle = '#FAFAFA';
+  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+  // ── DOT GRID ──
+  ctx.fillStyle = 'rgba(100,130,180,0.15)';
+  const gStep = Math.max(8, Math.round(5 * scale));
+  for (let x = P; x <= P + pw + 1; x += gStep)
+    for (let y = P; y <= P + ph + 1; y += gStep) {
+      ctx.beginPath(); ctx.arc(x, y, 0.7, 0, Math.PI * 2); ctx.fill();
+    }
+
+  // ── ROOM FILLS ──
+  for (const r of floor.rooms) {
+    const rx = P + r.x * scale, ry = P + r.y * scale;
+    const rw = r.w * scale,    rh = r.h * scale;
+    const pal = getRoomPalette(r.name);
+    ctx.fillStyle = pal.fill;
+    ctx.fillRect(rx, ry, rw, rh);
+  }
+
+  // ── OUTER PLOT WALLS (thick, dark) ──
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(P,            P,            pw,  OW);   // top
+  ctx.fillRect(P,            P + ph - OW,  pw,  OW);   // bottom
+  ctx.fillRect(P,            P,            OW,  ph);   // left
+  ctx.fillRect(P + pw - OW,  P,            OW,  ph);   // right
+
+  // ── INTERNAL PARTITION WALLS ──
+  for (let i = 0; i < floor.rooms.length; i++) {
+    for (let j = i + 1; j < floor.rooms.length; j++) {
+      const a = floor.rooms[i], b = floor.rooms[j];
+      const ax1 = P + a.x * scale, ax2 = ax1 + a.w * scale;
+      const ay1 = P + a.y * scale, ay2 = ay1 + a.h * scale;
+      const bx1 = P + b.x * scale, bx2 = bx1 + b.w * scale;
+      const by1 = P + b.y * scale, by2 = by1 + b.h * scale;
+      const yOvlp = ay1 < by2 - 1 && ay2 > by1 + 1;
+      const xOvlp = ax1 < bx2 - 1 && ax2 > bx1 + 1;
+      if (yOvlp && Math.abs(ax2 - bx1) < scale * 0.6) {
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(ax2 - IW / 2, Math.max(ay1, by1), IW, Math.min(ay2, by2) - Math.max(ay1, by1));
+      }
+      if (xOvlp && Math.abs(ay2 - by1) < scale * 0.6) {
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(Math.max(ax1, bx1), ay2 - IW / 2, Math.min(ax2, bx2) - Math.max(ax1, bx1), IW);
+      }
+    }
+  }
+
+  // ── ROOM BORDERS ──
+  ctx.strokeStyle = '#9aa0b0';
+  ctx.lineWidth = 0.7;
+  ctx.setLineDash([]);
+  for (const r of floor.rooms) {
+    ctx.strokeRect(P + r.x * scale, P + r.y * scale, r.w * scale, r.h * scale);
+  }
+
+  // ── OPENINGS (doors, windows, gate) ──
+  drawAllOpenings(ctx, floor.rooms, plotW, plotH, scale, P, OW, facing);
+
+  // ── FIXTURES (bed, sofa, kitchen, bath etc.) ──
+  for (const r of floor.rooms) {
+    drawFixture(ctx, r, P, scale);
+  }
+
+  // ── STAIRCASE SYMBOL ──
+  for (const r of floor.rooms) {
+    const n = r.name.toLowerCase();
+    if (n.includes('stair')) drawStaircaseSymbol(ctx, r, P, scale, floorIdx, totalFloors);
+  }
+
+  // ── ROOM LABELS ──
+  for (const r of floor.rooms) {
+    drawRoomLabel(ctx, r, P, scale);
+  }
+
+  // ── DIMENSION LINES ──
+  drawDimLine(ctx, P, P - 30, P + pw, P - 30, ftToFtIn(plotW), 'H');
+  drawDimLine(ctx, P - 32, P, P - 32, P + ph, ftToFtIn(plotH), 'V');
+
+  // ── NORTH ARROW ──
+  drawNorthArrow(ctx, P + pw + 38, P + 36, 18);
+
+  // ── ROAD LABEL ──
+  drawRoadLabel(ctx, facing, P, pw, ph);
+
+  // ── TITLE BLOCK ──
+  ctx.fillStyle = '#1a1a2e';
+  ctx.font = 'bold 11px Arial,sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(`${floor.name.toUpperCase()} — FLOOR PLAN`, P + pw / 2, P + ph + 44);
+  ctx.font = '9px Arial,sans-serif'; ctx.fillStyle = '#555';
+  ctx.fillText(`Scale 1:${drawingScale}  |  Plot: ${ftToFtIn(plotW)} × ${ftToFtIn(plotH)}  |  All dimensions in feet-inches`, P + pw / 2, P + ph + 58);
+}
+
+// ── OPENINGS ──
+function drawAllOpenings(ctx, rooms, plotW, plotH, scale, P, OW, facing) {
+  const f = facing.toLowerCase();
+  // Main gate
+  const gw = Math.max(12, scale * 3.5);
+  ctx.save();
+  ctx.setLineDash([]);
+
+  function gapAndPosts(gx, gy, gw, gh, isH) {
+    ctx.fillStyle = '#FAFAFA';
+    ctx.fillRect(gx, gy, gw, gh);
+    ctx.fillStyle = '#1a1a2e';
+    if (isH) { ctx.fillRect(gx - 3, gy, 4, gh); ctx.fillRect(gx + gw - 1, gy, 4, gh); }
+    else      { ctx.fillRect(gx, gy - 3, gw, 4); ctx.fillRect(gx, gy + gh - 1, gw, 4); }
+    ctx.font = 'bold 7px Arial'; ctx.fillStyle = '#333';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (isH) ctx.fillText('ENTRY', gx + gw / 2, gy + (f.includes('north') ? -12 : 14));
+    else ctx.fillText('ENTRY', gx + (f.includes('west') ? -18 : 18), gy + gh / 2);
+  }
+
+  const pw = plotW * scale, ph = plotH * scale;
+  if (f.includes('north'))     gapAndPosts(P + pw * 0.45, P,            gw, OW,  true);
+  else if (f.includes('south'))gapAndPosts(P + pw * 0.45, P + ph - OW,  gw, OW,  true);
+  else if (f.includes('east')) gapAndPosts(P + pw - OW,   P + ph * 0.45,OW, gw,  false);
+  else                          gapAndPosts(P,              P + ph * 0.45,OW, gw,  false);
+
+  ctx.restore();
+
+  // Doors & windows per room
+  rooms.forEach(r => {
+    const rx = P + r.x * scale, ry = P + r.y * scale;
+    const rw = r.w * scale,    rh = r.h * scale;
+    if (rw < 8 || rh < 8) return;
+    const n = r.name.toLowerCase();
+    const isBath  = n.includes('bath') || n.includes('toilet') || n.includes('wc');
+    const isOpen  = n.includes('verandah') || n.includes('porch') ||
+                    n.includes('balcony')   || n.includes('garden') || n.includes('terrace');
+    const isStair = n.includes('stair');
+    const isGarage= n.includes('garage');
+
+    if (isOpen) { drawOpenHatch(ctx, rx, ry, rw, rh); return; }
+    if (isStair || isGarage) return;
+
+    // Door
+    const dw = isBath ? 2.2 * scale : Math.min(3 * scale, rw * 0.4);
+    if (rw >= rh) drawDoor(ctx, rx + rw * 0.25, ry + rh, dw, 'S');
+    else          drawDoor(ctx, rx + rw,         ry + rh * 0.25, dw, 'E');
+
+    // Windows — only on external walls
+    const atN = r.y <= 0.75 + 0.15;
+    const atS = (r.y + r.h) >= plotH - 0.75 - 0.15;
+    const atW = r.x <= 0.75 + 0.15;
+    const atE = (r.x + r.w) >= plotW - 0.75 - 0.15;
+    const ww  = isBath ? 1.5 * scale : 3 * scale;
+
+    if (atN) drawWindow(ctx, rx + rw * 0.55, ry,      ww, 'H', OW);
+    if (atS) drawWindow(ctx, rx + rw * 0.55, ry + rh, ww, 'H', OW);
+    if (atW) drawWindow(ctx, rx,      ry + rh * 0.55, ww, 'V', OW);
+    if (atE) drawWindow(ctx, rx + rw, ry + rh * 0.55, ww, 'V', OW);
+  });
+}
+
+function drawDoor(ctx, x, y, dw, side) {
+  ctx.save(); ctx.setLineDash([]);
+  ctx.fillStyle = '#FAFAFA';
+  if (side === 'S' || side === 'N') ctx.fillRect(x, y - 3, dw, 7);
+  else ctx.fillRect(x - 3, y, 7, dw);
+  ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  if (side === 'S' || side === 'N') { ctx.moveTo(x, y); ctx.lineTo(x + dw, y); }
+  else { ctx.moveTo(x, y); ctx.lineTo(x, y + dw); }
+  ctx.stroke();
+  ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 0.8;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  if (side === 'S') ctx.arc(x, y, dw, 0, Math.PI / 2);
+  else if (side === 'N') ctx.arc(x + dw, y, dw, Math.PI / 2, Math.PI);
+  else if (side === 'E') ctx.arc(x, y, dw, Math.PI / 2, Math.PI);
+  else ctx.arc(x, y + dw, dw, -Math.PI / 2, 0);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawWindow(ctx, x, y, ww, dir, OW) {
+  ctx.save();
+  ctx.fillStyle = '#FAFAFA';
+  if (dir === 'H') ctx.fillRect(x - ww / 2, y - OW / 2, ww, OW);
+  else ctx.fillRect(x - OW / 2, y - ww / 2, OW, ww);
+  const off = OW * 0.28;
+  ctx.strokeStyle = '#2255AA'; ctx.lineWidth = 1.1; ctx.setLineDash([]);
+  [-off, 0, off].forEach(o => {
+    ctx.beginPath();
+    if (dir === 'H') { ctx.moveTo(x - ww / 2, y + o); ctx.lineTo(x + ww / 2, y + o); }
+    else { ctx.moveTo(x + o, y - ww / 2); ctx.lineTo(x + o, y + ww / 2); }
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function drawOpenHatch(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(80,100,140,0.25)'; ctx.lineWidth = 0.8;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(rx, ry); ctx.lineTo(rx + rw, ry + rh);
+  ctx.moveTo(rx + rw, ry); ctx.lineTo(rx, ry + rh);
+  ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+}
+
+// ── FIXTURE DRAWING ──
+function drawFixture(ctx, r, P, scale) {
+  const rx = P + r.x * scale, ry = P + r.y * scale;
+  const rw = r.w * scale,    rh = r.h * scale;
+  if (rw < 14 || rh < 14) return;
+  const n = r.name.toLowerCase();
+
+  if (n.includes('bath') || n.includes('toilet') || n.includes('wc'))
+    drawBathFixtures(ctx, rx, ry, rw, rh);
+  else if (n.includes('master bedroom')) drawBed(ctx, rx, ry, rw, rh, true);
+  else if (n.includes('bedroom')) drawBed(ctx, rx, ry, rw, rh, false);
+  else if (n.includes('living') || n.includes('drawing')) drawSofa(ctx, rx, ry, rw, rh);
+  else if (n.includes('dining')) drawDiningTable(ctx, rx, ry, rw, rh);
+  else if (n.includes('kitchen')) drawKitchenCounter(ctx, rx, ry, rw, rh);
+  else if (n.includes('study')) drawStudyDesk(ctx, rx, ry, rw, rh);
+  else if (n.includes('puja') || n.includes('mandir')) drawPujaSymbol(ctx, rx, ry, rw, rh);
+}
+
+function drawBed(ctx, rx, ry, rw, rh, isMaster) {
+  ctx.save();
+  const bw = Math.min(rw * 0.62, isMaster ? 82 : 68);
+  const bh = Math.min(rh * 0.62, isMaster ? 90 : 74);
+  const bx = rx + (rw - bw) / 2, by = ry + (rh - bh) / 2;
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#999'; ctx.lineWidth = 1;
+  ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh);
+  // Pillows
+  ctx.fillStyle = '#eee'; ctx.strokeStyle = '#bbb'; ctx.lineWidth = 0.7;
+  if (isMaster) {
+    ctx.fillRect(bx + 4, by + 4, bw / 2 - 6, bh * 0.2); ctx.strokeRect(bx + 4, by + 4, bw / 2 - 6, bh * 0.2);
+    ctx.fillRect(bx + bw / 2 + 2, by + 4, bw / 2 - 6, bh * 0.2); ctx.strokeRect(bx + bw / 2 + 2, by + 4, bw / 2 - 6, bh * 0.2);
+  } else {
+    ctx.fillRect(bx + 4, by + 4, bw - 8, bh * 0.2); ctx.strokeRect(bx + 4, by + 4, bw - 8, bh * 0.2);
+  }
+  // Mattress diagonals
+  ctx.strokeStyle = 'rgba(150,150,150,0.3)'; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(bx, by + bh * 0.28); ctx.lineTo(bx + bw, by + bh);
+  ctx.moveTo(bx + bw, by + bh * 0.28); ctx.lineTo(bx, by + bh);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawSofa(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  const sw = Math.min(rw * 0.65, 90), sh = Math.min(rh * 0.3, 34);
+  const sx = rx + rw * 0.18, sy = ry + rh * 0.55;
+  ctx.fillStyle = '#e8e4dc'; ctx.strokeStyle = '#999'; ctx.lineWidth = 0.9;
+  ctx.fillRect(sx, sy, sw, sh); ctx.strokeRect(sx, sy, sw, sh);
+  ctx.strokeStyle = '#bbb'; ctx.lineWidth = 0.6;
+  ctx.beginPath(); ctx.moveTo(sx + sw / 3, sy); ctx.lineTo(sx + sw / 3, sy + sh); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(sx + 2 * sw / 3, sy); ctx.lineTo(sx + 2 * sw / 3, sy + sh); ctx.stroke();
+  ctx.fillStyle = '#d8d4cc'; ctx.fillRect(sx, sy - sh * 0.28, sw, sh * 0.28); ctx.strokeRect(sx, sy - sh * 0.28, sw, sh * 0.28);
+  // Coffee table
+  const tw = sw * 0.38, th = sh * 0.65;
+  ctx.fillStyle = '#f0ede8'; ctx.strokeStyle = '#aaa'; ctx.lineWidth = 0.7;
+  ctx.fillRect(sx + (sw - tw) / 2, sy - sh * 1.3, tw, th); ctx.strokeRect(sx + (sw - tw) / 2, sy - sh * 1.3, tw, th);
+  ctx.restore();
+}
+
+function drawDiningTable(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  const tw = Math.min(rw * 0.55, 72), th = Math.min(rh * 0.52, 52);
+  const tx = rx + (rw - tw) / 2, ty = ry + (rh - th) / 2;
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#999'; ctx.lineWidth = 0.9;
+  ctx.fillRect(tx, ty, tw, th); ctx.strokeRect(tx, ty, tw, th);
+  ctx.fillStyle = '#e8e4dc'; ctx.lineWidth = 0.7;
+  const cs = 9, cg = 3;
+  for (let cx = tx + 8; cx + cs < tx + tw - 2; cx += cs + 5) {
+    ctx.fillRect(cx, ty - cs - cg, cs, cs); ctx.strokeRect(cx, ty - cs - cg, cs, cs);
+    ctx.fillRect(cx, ty + th + cg, cs, cs); ctx.strokeRect(cx, ty + th + cg, cs, cs);
+  }
+  ctx.fillRect(tx - cs - cg, ty + 8, cs, cs); ctx.strokeRect(tx - cs - cg, ty + 8, cs, cs);
+  ctx.fillRect(tx + tw + cg, ty + 8, cs, cs); ctx.strokeRect(tx + tw + cg, ty + 8, cs, cs);
+  ctx.restore();
+}
+
+function drawKitchenCounter(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  const cd = Math.min(rw * 0.22, 18);
+  ctx.fillStyle = '#d8d4cc'; ctx.strokeStyle = '#777'; ctx.lineWidth = 1;
+  ctx.fillRect(rx + 2, ry + 2, rw - 4, cd); ctx.strokeRect(rx + 2, ry + 2, rw - 4, cd);
+  ctx.fillRect(rx + rw - cd - 2, ry + 2, cd, rh * 0.55); ctx.strokeRect(rx + rw - cd - 2, ry + 2, cd, rh * 0.55);
+  // Sink
+  ctx.fillStyle = '#b8d4e8';
+  const sk = 14, skx = rx + 6, sky = ry + 4;
+  ctx.fillRect(skx, sky, sk, cd - 3); ctx.strokeRect(skx, sky, sk, cd - 3);
+  ctx.strokeStyle = '#666'; ctx.beginPath(); ctx.arc(skx + sk / 2, sky + (cd - 3) / 2, 2, 0, Math.PI * 2); ctx.stroke();
+  // Hob burners
+  const hr = Math.min(4, cd * 0.35);
+  ctx.fillStyle = '#888';
+  [0, 1, 2, 3].forEach(i => {
+    ctx.beginPath(); ctx.arc(rx + sk + 16 + (i % 2) * hr * 2.8, ry + 5 + Math.floor(i / 2) * hr * 2.8, hr, 0, Math.PI * 2);
+    ctx.fill(); ctx.strokeStyle = '#666'; ctx.lineWidth = 0.6; ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function drawBathFixtures(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  // Tile grid
+  ctx.fillStyle = '#e8f2f8'; ctx.fillRect(rx + 1, ry + 1, rw - 2, rh - 2);
+  ctx.strokeStyle = 'rgba(80,120,180,0.15)'; ctx.lineWidth = 0.4;
+  const ts = Math.max(5, Math.min(10, rw / 4));
+  for (let x = rx; x < rx + rw; x += ts) { ctx.beginPath(); ctx.moveTo(x, ry); ctx.lineTo(x, ry + rh); ctx.stroke(); }
+  for (let y = ry; y < ry + rh; y += ts) { ctx.beginPath(); ctx.moveTo(rx, y); ctx.lineTo(rx + rw, y); ctx.stroke(); }
+  ctx.strokeStyle = '#5580a0'; ctx.lineWidth = 0.9;
+  // Basin
+  const bw = Math.min(rw * 0.5, 18), bh = Math.min(rh * 0.2, 14);
+  ctx.fillStyle = '#fff'; ctx.fillRect(rx + (rw - bw) / 2, ry + 3, bw, bh); ctx.strokeRect(rx + (rw - bw) / 2, ry + 3, bw, bh);
+  ctx.beginPath(); ctx.ellipse(rx + rw / 2, ry + 3 + bh / 2, bw * 0.35, bh * 0.35, 0, 0, Math.PI * 2); ctx.stroke();
+  // Toilet
+  const tw = Math.min(rw * 0.58, 22), th = Math.min(rh * 0.45, 32);
+  const tx = rx + (rw - tw) / 2, ty = ry + rh - th - 3;
+  ctx.fillStyle = '#cce0ee'; ctx.fillRect(tx, ty, tw, th * 0.28); ctx.strokeRect(tx, ty, tw, th * 0.28);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(tx + tw / 2, ty + th * 0.7, tw * 0.42, th * 0.34, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(tx + tw / 2, ty + th * 0.7, tw * 0.33, th * 0.26, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
+function drawStudyDesk(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  const dw = Math.min(rw * 0.62, 68), dh = Math.min(rh * 0.25, 20);
+  ctx.fillStyle = '#e8e4d8'; ctx.strokeStyle = '#999'; ctx.lineWidth = 0.9;
+  ctx.fillRect(rx + (rw - dw) / 2, ry + 4, dw, dh); ctx.strokeRect(rx + (rw - dw) / 2, ry + 4, dw, dh);
+  const cs = 14;
+  ctx.fillRect(rx + (rw - cs) / 2, ry + dh + 8, cs, cs); ctx.strokeRect(rx + (rw - cs) / 2, ry + dh + 8, cs, cs);
+  ctx.restore();
+}
+
+function drawPujaSymbol(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  const cx = rx + rw / 2, cy = ry + rh / 2;
+  ctx.fillStyle = '#d4a020'; ctx.strokeStyle = '#8a6010'; ctx.lineWidth = 0.9;
+  ctx.fillRect(cx - 18, cy + 4, 36, 7); ctx.strokeRect(cx - 18, cy + 4, 36, 7);
+  ctx.fillStyle = '#e8900a';
+  ctx.beginPath(); ctx.moveTo(cx, cy - 16); ctx.lineTo(cx - 7, cy + 4); ctx.lineTo(cx + 7, cy + 4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#f8c830';
+  ctx.beginPath(); ctx.moveTo(cx, cy - 9); ctx.lineTo(cx - 3.5, cy + 2); ctx.lineTo(cx + 3.5, cy + 2); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawStaircaseSymbol(ctx, r, P, scale, floorIdx, totalFloors) {
+  const rx = P + r.x * scale, ry = P + r.y * scale;
+  const rw = r.w * scale,    rh = r.h * scale;
+  ctx.save();
+  const steps = Math.max(4, Math.round(rh / Math.max(8, rw * 0.12)));
+  const sh = rh / steps;
+  for (let i = 0; i < steps; i++) {
+    ctx.fillStyle = i % 2 === 0 ? '#e4e0da' : '#ede9e3';
+    ctx.fillRect(rx, ry + i * sh, rw, sh);
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 0.6;
+    ctx.strokeRect(rx, ry + i * sh, rw, sh);
+  }
+  ctx.fillStyle = '#444'; ctx.font = 'bold 7px Arial';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('UP', rx + 4, ry + rh / 2);
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(rx + 20, ry + rh / 2); ctx.lineTo(rx + 20, ry + 6);
+  ctx.lineTo(rx + 17, ry + 10); ctx.moveTo(rx + 20, ry + 6); ctx.lineTo(rx + 23, ry + 10);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ── ROOM LABELS ──
+function drawRoomLabel(ctx, r, P, scale) {
+  const rx = P + r.x * scale, ry = P + r.y * scale;
+  const rw = r.w * scale,    rh = r.h * scale;
+  if (rw < 12 || rh < 12) return;
+  const n = r.name.toLowerCase();
+  if (n.includes('stair')) return;
+
+  const cx = rx + rw / 2, cy = ry + rh / 2;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(rx + 2, ry + 2, rw - 4, rh - 4); ctx.clip();
+
+  const fs = Math.max(7, Math.min(12, Math.min(rw / 7, rh / 4)));
+  ctx.fillStyle = '#1a1a2e';
+  ctx.font = `bold ${fs}px Arial,sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(r.name, cx, cy - fs * 0.7);
+
+  ctx.font = `${Math.max(6, fs - 2)}px Arial,sans-serif`;
+  ctx.fillStyle = '#556677';
+  ctx.fillText(`${ftToFtIn(r.w)}×${ftToFtIn(r.h)}`, cx, cy + fs * 0.7);
+  ctx.restore();
+}
+
+// ── DIMENSION LINES ──
+function drawDimLine(ctx, x1, y1, x2, y2, label, dir) {
+  ctx.save();
+  ctx.strokeStyle = '#444'; ctx.fillStyle = '#222';
+  ctx.lineWidth = 0.8; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  if (dir === 'H') {
+    ctx.beginPath(); ctx.moveTo(x1, y1 - 5); ctx.lineTo(x1, y1 + 5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2, y2 - 5); ctx.lineTo(x2, y2 + 5); ctx.stroke();
+    ctx.font = 'bold 10px Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(label).width + 8;
+    ctx.fillStyle = '#fff'; ctx.fillRect((x1 + x2) / 2 - tw / 2, y1 - 8, tw, 16);
+    ctx.fillStyle = '#222'; ctx.fillText(label, (x1 + x2) / 2, y1);
+    [[x1, 1], [x2, -1]].forEach(([ax, d]) => {
+      ctx.fillStyle = '#444';
+      ctx.beginPath(); ctx.moveTo(ax, y1); ctx.lineTo(ax + 5 * d, y1 - 3); ctx.lineTo(ax + 5 * d, y1 + 3); ctx.closePath(); ctx.fill();
+    });
+  } else {
+    ctx.beginPath(); ctx.moveTo(x1 - 5, y1); ctx.lineTo(x1 + 5, y1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2 - 5, y2); ctx.lineTo(x2 + 5, y2); ctx.stroke();
+    ctx.save(); ctx.translate(x1, (y1 + y2) / 2); ctx.rotate(-Math.PI / 2);
+    ctx.font = 'bold 10px Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(label).width + 8;
+    ctx.fillStyle = '#fff'; ctx.fillRect(-tw / 2, -8, tw, 16);
+    ctx.fillStyle = '#222'; ctx.fillText(label, 0, 0); ctx.restore();
+    [[y1, 1], [y2, -1]].forEach(([ay, d]) => {
+      ctx.fillStyle = '#444';
+      ctx.beginPath(); ctx.moveTo(x1, ay); ctx.lineTo(x1 - 3, ay + 5 * d); ctx.lineTo(x1 + 3, ay + 5 * d); ctx.closePath(); ctx.fill();
+    });
+  }
+  ctx.restore();
+}
+
+// ── NORTH ARROW ──
+function drawNorthArrow(ctx, cx, cy, r) {
+  ctx.save();
+  ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 1;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath(); ctx.moveTo(cx, cy - r + 2); ctx.lineTo(cx - r * 0.3, cy + r * 0.35); ctx.lineTo(cx, cy - 1); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.moveTo(cx, cy - r + 2); ctx.lineTo(cx + r * 0.3, cy + r * 0.35); ctx.lineTo(cx, cy - 1); ctx.closePath(); ctx.stroke();
+  ctx.fillStyle = '#1a1a2e'; ctx.font = `bold ${Math.round(r * 0.5)}px Arial,sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('N', cx, cy + r * 0.65);
+  ctx.restore();
+}
+
+// ── ROAD LABEL ──
+function drawRoadLabel(ctx, facing, P, pw, ph) {
+  const f = facing.toLowerCase();
+  ctx.save(); ctx.fillStyle = '#444'; ctx.font = 'bold 8px Arial,sans-serif';
+  ctx.textAlign = 'center'; ctx.strokeStyle = '#bbb'; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+  if (f.includes('north')) {
+    ctx.beginPath(); ctx.moveTo(P, P - 38); ctx.lineTo(P + pw, P - 38); ctx.stroke();
+    ctx.fillText('— ROAD —', P + pw / 2, P - 44);
+  } else if (f.includes('south')) {
+    ctx.beginPath(); ctx.moveTo(P, P + ph + 38); ctx.lineTo(P + pw, P + ph + 38); ctx.stroke();
+    ctx.fillText('— ROAD —', P + pw / 2, P + ph + 46);
+  } else if (f.includes('east')) {
+    ctx.save(); ctx.translate(P + pw + 44, P + ph / 2); ctx.rotate(Math.PI / 2);
+    ctx.beginPath(); ctx.moveTo(-ph / 2, 0); ctx.lineTo(ph / 2, 0); ctx.stroke();
+    ctx.fillText('— ROAD —', 0, 10); ctx.restore();
+  } else {
+    ctx.save(); ctx.translate(P - 44, P + ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.beginPath(); ctx.moveTo(-ph / 2, 0); ctx.lineTo(ph / 2, 0); ctx.stroke();
+    ctx.fillText('— ROAD —', 0, 10); ctx.restore();
+  }
+  ctx.setLineDash([]); ctx.restore();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SECTION 8: UI — FLOOR SWITCHER, LEGEND, TABLES, REPORTS
+// ══════════════════════════════════════════════════════════════════════
+function buildFloorSwitcher() {
+  const sw = document.getElementById('floorSwitcher');
+  sw.innerHTML = '';
+  APP.floors.forEach((fl, i) => {
+    const btn = document.createElement('button');
+    btn.className = `btn-sm floor-btn${i === 0 ? ' active' : ''}`;
+    btn.textContent = fl.name;
+    btn.onclick = () => renderFloor(i);
+    sw.appendChild(btn);
+  });
+}
+
+function buildLegend() {
+  const div = document.getElementById('legendDiv');
+  const shown = new Set();
+  const items = [];
+  APP.floors.forEach(fl => fl.rooms.forEach(r => {
+    if (!shown.has(r.name)) {
+      shown.add(r.name);
+      items.push(r.name);
+    }
+  }));
+  div.innerHTML = items.map(name => {
+    const pal = getRoomPalette(name);
+    return `<div class="legend-item">
+      <div class="legend-swatch" style="background:${pal.fill};border-color:${pal.border}"></div>
+      ${name}
+    </div>`;
+  }).join('');
+  div.innerHTML += `<div class="legend-item" style="margin-top:4px">
+    <div class="legend-swatch" style="background:#1a1a2e"></div>Structural Wall
+  </div>`;
+}
+
+function buildRoomTable() {
+  const tbody = document.getElementById('roomTableBody');
+  tbody.innerHTML = '';
+  APP.floors.forEach(fl => {
+    fl.rooms.forEach(r => {
+      const dir = getCompassDir(r, APP.plotW, APP.plotH);
+      const idealDir = VASTU.directions[r.name] || '—';
+      const isOk  = idealDir === '—' || idealDir === dir || idealDir.includes(dir[0]);
+      const area  = (r.w * r.h).toFixed(1);
+      tbody.innerHTML += `<tr>
+        <td><strong>${r.name}</strong><br><small style="color:var(--muted)">${fl.name}</small></td>
+        <td style="font-family:monospace">${dir}</td>
+        <td>${ftToFtIn(r.w)} × ${ftToFtIn(r.h)}</td>
+        <td>${area} sq ft</td>
+        <td><span class="vastu-badge ${isOk ? 'vastu-ok' : 'vastu-warn'}">${isOk ? '✓ Good' : '⚠ Review'}</span></td>
+      </tr>`;
+    });
+  });
+}
+
+function buildVastuReport(adjacencyData) {
+  const score = APP.vastuScore;
+  const circumference = 2 * Math.PI * 38;
+  const dash = (score / 100) * circumference;
+  const color = score >= 80 ? '#4caf82' : score >= 60 ? '#e07b3f' : '#d94f4f';
+  const label = score >= 80 ? 'Excellent Vastu' : score >= 60 ? 'Good Vastu' : 'Needs Review';
+
+  document.getElementById('vastuScoreCard').innerHTML = `
+    <div class="ring-wrap">
+      <svg width="90" height="90" viewBox="0 0 90 90">
+        <circle cx="45" cy="45" r="38" stroke="rgba(201,168,76,0.1)" stroke-width="6" fill="none"/>
+        <circle cx="45" cy="45" r="38" stroke="${color}" stroke-width="6" fill="none"
+          stroke-dasharray="${dash.toFixed(1)} ${circumference.toFixed(1)}" stroke-linecap="round"/>
+      </svg>
+      <div class="ring-score">${score}</div>
+    </div>
+    <div class="score-details">
+      <h3>${label}</h3>
+      <p>${adjacencyData?.notes || 'Vastu analysis complete. Review room directions for optimisation.'}</p>
+    </div>`;
+
+  const rules = buildVastuRules();
+  document.getElementById('vastuRules').innerHTML = rules.map(rule =>
+    `<div class="vastu-rule ${rule.status}">
+      <div class="rule-icon">${rule.icon}</div>
+      <div class="rule-text"><strong>${rule.title}</strong>${rule.desc}</div>
+    </div>`
+  ).join('');
+}
+
+function buildVastuRules() {
+  const rules = [];
+  const checkRoom = (name, idealDirs, desc) => {
+    const found = APP.floors.flatMap(f => f.rooms).find(r => r.name === name);
+    if (!found) return;
+    const dir = getCompassDir(found, APP.plotW, APP.plotH);
+    const ok = idealDirs.some(d => dir.includes(d));
+    rules.push({
+      status: ok ? 'ok' : 'warn',
+      icon: ok ? '✅' : '⚠️',
+      title: `${name} — ${dir}`,
+      desc: ` · Ideal: ${idealDirs.join('/')}. ${desc}`,
+    });
+  };
+
+  checkRoom('Master Bedroom', ['SW', 'S', 'W'], 'SW is most auspicious for master.');
+  checkRoom('Kitchen', ['SE', 'E'], 'SE (Agneya) is ideal for fire element.');
+  checkRoom('Puja Room', ['NE', 'N', 'E'], 'NE (Ishanya) is sacred direction.');
+  checkRoom('Living Room', ['N', 'NE', 'E'], 'North facing maximises positive energy.');
+  checkRoom('Study Room', ['W', 'SW'], 'West direction aids concentration.');
+
+  const baths = APP.floors.flatMap(f => f.rooms).filter(r =>
+    r.name.toLowerCase().includes('bath') || r.name.toLowerCase().includes('toilet')
+  );
+  baths.forEach(b => {
+    const dir = getCompassDir(b, APP.plotW, APP.plotH);
+    const ok = ['NW', 'SE', 'W'].some(d => dir.includes(d));
+    rules.push({
+      status: ok ? 'ok' : 'bad',
+      icon: ok ? '✅' : '❌',
+      title: `${b.name} — ${dir}`,
+      desc: ' · Bathrooms must avoid NE (sacred) and SW (master).',
+    });
+  });
+
+  rules.push({
+    status: 'ok',
+    icon: '📐',
+    title: `Plot: ${ftToFtIn(APP.plotW)} × ${ftToFtIn(APP.plotH)}`,
+    desc: ` · Facing: ${APP.facing}. Brahmasthan (centre) kept open in multi-room layout.`,
+  });
+
+  return rules;
+}
+
+function buildSummary(plotW, plotH, floorsVal, bedCount, familySize) {
+  const totalArea = (plotW * plotH * APP.floors.length).toFixed(0);
+  const builtArea = APP.floors.flatMap(f => f.rooms).reduce((s, r) => s + r.w * r.h, 0).toFixed(0);
+  const roomCount = APP.floors.flatMap(f => f.rooms).length;
+  const bathCount = APP.floors.flatMap(f => f.rooms).filter(r =>
+    r.name.toLowerCase().includes('bath') || r.name.toLowerCase().includes('toilet')
+  ).length;
+
+  document.getElementById('summaryGrid').innerHTML = `
+    <div class="summary-card"><div class="val">${plotW}×${plotH}</div><div class="lbl">Plot Size (ft)</div></div>
+    <div class="summary-card"><div class="val">${totalArea}</div><div class="lbl">Total Area (sq ft)</div></div>
+    <div class="summary-card"><div class="val">${builtArea}</div><div class="lbl">Built-up Area (sq ft)</div></div>
+    <div class="summary-card"><div class="val">${APP.floors.length}</div><div class="lbl">Floors</div></div>
+    <div class="summary-card"><div class="val">${bedCount}</div><div class="lbl">Bedrooms</div></div>
+    <div class="summary-card"><div class="val">${bathCount}</div><div class="lbl">Bathrooms</div></div>
+    <div class="summary-card"><div class="val">${roomCount}</div><div class="lbl">Total Rooms</div></div>
+    <div class="summary-card"><div class="val">${familySize}</div><div class="lbl">Family Members</div></div>
+    <div class="summary-card"><div class="val">${APP.vastuScore}</div><div class="lbl">Vastu Score</div></div>`;
+
+  document.getElementById('notesSection').innerHTML = `
+    <div class="note-box"><strong>Architecture Notes</strong>
+      Outer walls: 9" (0.75 ft) thick RCC/brick. Internal partitions: 5" (0.42 ft) brick. 
+      Minimum corridor width: 3.5 ft. Staircase: South/SW per Vastu. Bathrooms in NW or SE.
+    </div>
+    <div class="note-box"><strong>Civil Engineering Standards</strong>
+      Setback: 5 ft front, 3 ft sides (verify local bylaws). Plot coverage ≤ 60%.
+      FAR (Floor Area Ratio): Check municipal regulations. RCC slab construction assumed.
+    </div>
+    <div class="note-box"><strong>Washroom Distribution</strong>
+      ${bathCount} bathrooms across ${APP.floors.length} floor(s). Minimum 1 per floor.
+      Master bedroom has attached bathroom. Common bathroom accessible from corridor.
+    </div>`;
+}
+
+function updateScaleBar(scale, plotW) {
+  const scaleVal = { 100: '10 ft', 50: '5 ft', 25: '2.5 ft' }[scale] || '5 ft';
+  document.getElementById('scaleLabel').textContent = scaleVal;
+}
+
+// ── ZOOM ──
+function zoomIn()   { APP.zoom = Math.min(APP.zoom * 1.25, 4); applyZoom(); }
+function zoomOut()  { APP.zoom = Math.max(APP.zoom / 1.25, 0.4); applyZoom(); }
+function resetZoom(){ APP.zoom = 1; applyZoom(); }
+function applyZoom() {
+  const canvas = document.getElementById('planCanvas');
+  canvas.style.transform = `scale(${APP.zoom})`;
+  canvas.style.transformOrigin = 'top left';
+}
+
+// ── EXPORT PDF ──
+function exportPDF() {
+  try {
+    const { jsPDF } = window.jspdf;
+    const canvas = document.getElementById('planCanvas');
+    const imgData = canvas.toDataURL('image/png', 1.0);
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
+    const pw = 420 - 20, ph = (canvas.height / canvas.width) * pw;
+    pdf.setFillColor(8, 17, 30);
+    pdf.rect(0, 0, 420, 297, 'F');
+    pdf.addImage(imgData, 'PNG', 10, (297 - ph) / 2, pw, ph);
+    pdf.setTextColor(201, 168, 76);
+    pdf.setFontSize(8);
+    pdf.text(`VastuPlan AI · ${APP.floors[APP.currentFloor]?.name} · Plot ${APP.plotW}×${APP.plotH}ft · ${APP.facing} Facing`, 10, 290);
+    pdf.save(`VastuPlan_${APP.floors[APP.currentFloor]?.name?.replace(/\s/g,'_')}.pdf`);
+    dlog('PDF exported', 'ok');
+  } catch (e) {
+    dlog(`PDF error: ${e.message}`, 'err');
+    alert('PDF export failed. Try right-clicking the canvas and saving as image.');
+  }
+}
+</script>
+</body>
+</html>
