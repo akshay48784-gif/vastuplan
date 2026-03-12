@@ -1,0 +1,2435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VastuPlan AI — Architectural Floor Plan Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --navy: #08111e;
+    --navy2: #0e1f35;
+    --blue: #112d4e;
+    --accent: #c9a84c;
+    --accent2: #e8c97a;
+    --white: #f0ece4;
+    --muted: #7a8fa6;
+    --grid: rgba(201,168,76,0.06);
+    --success: #4caf82;
+    --warn: #e07b3f;
+    --danger: #d94f4f;
+    --border: rgba(201,168,76,0.2);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--navy);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    background-image:
+      linear-gradient(rgba(201,168,76,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(201,168,76,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 40px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,17,30,0.9);
+    backdrop-filter: blur(10px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 38px; height: 38px;
+    background: var(--accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: var(--navy);
+  }
+  .logo-text { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--white); }
+  .logo-text span { color: var(--accent); }
+  .badge {
+    background: rgba(201,168,76,0.1); border: 1px solid var(--border);
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 11px; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase;
+    font-family: 'Space Mono', monospace;
+  }
+  .hero { text-align: center; padding: 60px 20px 40px; }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(32px, 5vw, 58px);
+    line-height: 1.15; margin-bottom: 16px;
+  }
+  .hero h1 em { color: var(--accent); font-style: normal; }
+  .hero p { color: var(--muted); font-size: 16px; max-width: 520px; margin: 0 auto 30px; line-height: 1.7; }
+  .steps-row { display: flex; justify-content: center; gap: 0; flex-wrap: wrap; margin: 0 auto; max-width: 700px; }
+  .step {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--muted); font-family: 'Space Mono', monospace;
+    padding: 0 20px;
+  }
+  .step:not(:last-child)::after { content: '→'; color: var(--border); margin-left: 20px; }
+  .step-num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: var(--navy);
+    font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .main { display: flex; gap: 24px; padding: 0 30px 60px; max-width: 1400px; margin: 0 auto; }
+  .panel {
+    background: rgba(14,31,53,0.7);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px;
+    backdrop-filter: blur(8px);
+  }
+  .form-panel { width: 380px; flex-shrink: 0; }
+  .results-panel { flex: 1; min-width: 0; }
+  .panel-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px; color: var(--accent);
+    margin-bottom: 24px; padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .panel-title svg { opacity: 0.7; }
+  .api-section {
+    background: rgba(201,168,76,0.06);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-bottom: 20px;
+  }
+  .api-section label { font-size: 11px; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; font-family: 'Space Mono', monospace; display: block; margin-bottom: 8px; }
+  .api-section input {
+    width: 100%; background: rgba(8,17,30,0.8);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; color: var(--white); font-size: 13px;
+    font-family: 'Space Mono', monospace; outline: none; transition: border-color 0.2s;
+  }
+  .api-section input:focus { border-color: var(--accent); }
+  .api-note { font-size: 10px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .api-note a { color: var(--accent); text-decoration: none; }
+  .field { margin-bottom: 18px; }
+  .field label {
+    display: block; font-size: 11px; color: var(--muted);
+    letter-spacing: 1px; text-transform: uppercase;
+    font-family: 'Space Mono', monospace; margin-bottom: 8px;
+  }
+  .field input, .field select, .field textarea {
+    width: 100%; background: rgba(8,17,30,0.6);
+    border: 1px solid rgba(201,168,76,0.15); border-radius: 8px;
+    padding: 11px 14px; color: var(--white); font-size: 14px;
+    font-family: 'DM Sans', sans-serif; outline: none;
+    transition: border-color 0.2s; appearance: none;
+  }
+  .field select { cursor: pointer; }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+  .field textarea { resize: vertical; min-height: 80px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .check-group { display: flex; flex-direction: column; gap: 8px; }
+  .check-item {
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer; padding: 8px 12px;
+    border: 1px solid rgba(201,168,76,0.1);
+    border-radius: 8px; transition: all 0.2s;
+  }
+  .check-item:hover { border-color: var(--border); background: rgba(201,168,76,0.05); }
+  .check-item input[type=checkbox] { display: none; }
+  .check-box {
+    width: 16px; height: 16px; border-radius: 4px;
+    border: 1px solid var(--muted);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.2s;
+  }
+  .check-item input:checked ~ .check-box { background: var(--accent); border-color: var(--accent); }
+  .check-item input:checked ~ .check-box::after { content: '✓'; font-size: 10px; color: var(--navy); font-weight: 700; }
+  .check-label { font-size: 13px; color: var(--white); }
+  .btn-generate {
+    width: 100%; padding: 16px; background: var(--accent);
+    border: none; border-radius: 12px;
+    color: var(--navy); font-size: 15px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: all 0.3s;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    margin-top: 8px; letter-spacing: 0.5px;
+  }
+  .btn-generate:hover { background: var(--accent2); transform: translateY(-1px); box-shadow: 0 8px 30px rgba(201,168,76,0.3); }
+  .btn-generate:active { transform: translateY(0); }
+  .btn-generate:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .loading { display: none; text-align: center; padding: 60px 20px; }
+  .loading.active { display: block; }
+  .blueprint-anim { width: 120px; height: 120px; margin: 0 auto 24px; position: relative; }
+  .blueprint-anim svg { animation: spin 2s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-family: 'Space Mono', monospace; font-size: 13px; color: var(--accent); }
+  .loading-sub { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .dots::after { content: ''; animation: dots 1.5s infinite; }
+  @keyframes dots { 0%{content:'.'} 33%{content:'..'} 66%{content:'...'} }
+  .results { display: none; }
+  .results.active { display: block; }
+  .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 10px 22px; font-size: 13px; cursor: pointer;
+    color: var(--muted); font-family: 'Space Mono', monospace;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: all 0.2s; letter-spacing: 0.5px;
+  }
+  .tab:hover { color: var(--white); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  #planCanvas {
+    width: 100%; border-radius: 12px;
+    border: 1px solid var(--border);
+    background: #fff; display: block; cursor: crosshair;
+  }
+  .canvas-wrap { position: relative; }
+  .canvas-toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .btn-sm {
+    padding: 7px 14px; border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(14,31,53,0.8);
+    color: var(--white); font-size: 12px;
+    cursor: pointer; transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-sm.primary { background: var(--accent); color: var(--navy); border-color: var(--accent); font-weight: 600; }
+  .btn-sm.primary:hover { background: var(--accent2); }
+  .btn-sm.active { border-color: var(--accent); color: var(--accent); background: rgba(201,168,76,0.1); }
+  .floor-switcher { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.1); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 14px;
+    font-family: 'Space Mono', monospace; font-size: 10px;
+    letter-spacing: 1px; text-transform: uppercase;
+    color: var(--muted); border-bottom: 1px solid var(--border);
+  }
+  td { padding: 12px 14px; border-bottom: 1px solid rgba(201,168,76,0.06); color: var(--white); }
+  tr:hover td { background: rgba(201,168,76,0.04); }
+  .vastu-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 12px; font-size: 11px;
+    font-family: 'Space Mono', monospace;
+  }
+  .vastu-ok { background: rgba(76,175,130,0.15); color: var(--success); }
+  .vastu-warn { background: rgba(224,123,63,0.15); color: var(--warn); }
+  .vastu-bad { background: rgba(217,79,79,0.15); color: var(--danger); }
+  .vastu-score-ring {
+    display: flex; align-items: center; gap: 24px;
+    background: rgba(8,17,30,0.6); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 24px; margin-bottom: 20px;
+  }
+  .ring-wrap { position: relative; width: 90px; height: 90px; flex-shrink: 0; }
+  .ring-wrap svg { transform: rotate(-90deg); }
+  .ring-score {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Playfair Display', serif; font-size: 26px; color: var(--accent);
+  }
+  .score-details h3 { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 4px; }
+  .score-details p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .vastu-rules { display: flex; flex-direction: column; gap: 10px; }
+  .vastu-rule {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 12px 16px; border-radius: 10px; font-size: 13px;
+  }
+  .vastu-rule.ok { background: rgba(76,175,130,0.08); border: 1px solid rgba(76,175,130,0.2); }
+  .vastu-rule.warn { background: rgba(224,123,63,0.08); border: 1px solid rgba(224,123,63,0.2); }
+  .vastu-rule.bad { background: rgba(217,79,79,0.08); border: 1px solid rgba(217,79,79,0.2); }
+  .rule-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .rule-text { line-height: 1.5; }
+  .rule-text strong { display: block; margin-bottom: 2px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .summary-card {
+    background: rgba(8,17,30,0.6); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; text-align: center;
+  }
+  .summary-card .val { font-family: 'Playfair Display', serif; font-size: 26px; color: var(--accent); }
+  .summary-card .lbl { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: 'Space Mono', monospace; letter-spacing: 0.5px; }
+  .notes-section { margin-top: 16px; }
+  .note-box {
+    background: rgba(8,17,30,0.5); border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0; padding: 14px 16px; margin-bottom: 10px;
+    font-size: 13px; line-height: 1.7; color: var(--muted);
+  }
+  .note-box strong { color: var(--white); display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; font-family: 'Space Mono', monospace; }
+  .compass {
+    position: absolute; top: 14px; right: 14px;
+    width: 60px; height: 60px;
+    background: rgba(8,17,30,0.85); border: 1px solid var(--border);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  }
+  .error-box {
+    background: rgba(217,79,79,0.1); border: 1px solid rgba(217,79,79,0.3);
+    border-radius: 10px; padding: 16px; margin-top: 12px;
+    font-size: 13px; color: #ef9090; line-height: 1.8; display: none; white-space: pre-line;
+  }
+  .empty-state {
+    text-align: center; padding: 80px 20px;
+    border: 1px dashed var(--border); border-radius: 16px;
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+  .empty-state h3 { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 8px; color: var(--muted); }
+  .empty-state p { font-size: 13px; color: var(--muted); opacity: 0.6; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  @media (max-width: 900px) {
+    .main { flex-direction: column; padding: 0 16px 40px; }
+    .form-panel { width: 100%; }
+    header { padding: 14px 20px; }
+    .hero { padding: 40px 16px 30px; }
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.4s ease both; }
+  .scale-bar { margin-top: 8px; display: flex; align-items: center; gap: 8px; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); }
+  .scale-line { width: 60px; height: 2px; background: var(--accent); position: relative; }
+  .scale-line::before, .scale-line::after { content: ''; width: 1px; height: 8px; background: var(--accent); position: absolute; top: -3px; }
+  .scale-line::after { right: 0; }
+  /* Debug Panel */
+  #debugPanel {
+    display: none; position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(8,12,20,0.97); border-top: 1px solid var(--border);
+    max-height: 220px; overflow-y: auto; z-index: 999;
+    font-family: 'Space Mono', monospace; font-size: 11px; padding: 12px 20px;
+  }
+  #debugPanel.visible { display: block; }
+  #debugToggle {
+    position: fixed; bottom: 12px; right: 16px; z-index: 1000;
+    background: rgba(14,31,53,0.95); border: 1px solid var(--border);
+    color: var(--muted); font-family: 'Space Mono', monospace; font-size: 10px;
+    padding: 5px 10px; border-radius: 6px; cursor: pointer;
+  }
+  .dlog-ok { color: #4caf82; } .dlog-warn { color: #e07b3f; }
+  .dlog-err { color: #d94f4f; } .dlog-info { color: #7ab8e8; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">V</div>
+    <div class="logo-text">Vastu<span>Plan</span> AI</div>
+  </div>
+  <div class="badge">v3.0 — BSP Engine</div>
+</header>
+
+<div class="hero">
+  <h1>Intelligent <em>Architectural</em><br>Plan Generator</h1>
+  <p>Generate Vastu-compliant residential floor plans with AI — optimised for cross ventilation, natural light, and space utilisation.</p>
+  <div class="steps-row">
+    <div class="step"><div class="step-num">1</div> Enter Details</div>
+    <div class="step"><div class="step-num">2</div> AI Adjacency</div>
+    <div class="step"><div class="step-num">3</div> BSP Layout</div>
+    <div class="step"><div class="step-num">4</div> Export PDF</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="panel form-panel">
+    <div class="panel-title">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      Project Details
+    </div>
+
+    <div class="api-section">
+      <label>🔑 Groq API Key <span style="background:rgba(76,175,130,0.2);color:#4caf82;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px;">FREE</span></label>
+      <input type="password" id="apiKey" placeholder="gsk_..." />
+      <div class="api-note">
+        ✅ 100% Free — No credit card needed.<br>
+        Get FREE key: <a href="https://console.groq.com" target="_blank">console.groq.com</a> → Sign up free → API Keys → Create Key → Copy &amp; paste above.
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Plot Size</label>
+      <div class="row2">
+        <div><input type="number" id="plotW" placeholder="Width (ft)" value="40" min="10" max="500"></div>
+        <div><input type="number" id="plotH" placeholder="Depth (ft)" value="60" min="10" max="500"></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Number of Floors</label>
+      <select id="floors">
+        <option value="G">Ground Floor Only</option>
+        <option value="G+1" selected>G+1 (2 Floors)</option>
+        <option value="G+2">G+2 (3 Floors)</option>
+        <option value="G+3">G+3 (4 Floors)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Drawing Scale</label>
+      <select id="drawingScale">
+        <option value="100">1:100 — Small plot / overview</option>
+        <option value="50" selected>1:50 — Standard residential</option>
+        <option value="25">1:25 — Detailed / large plot</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Family Members</label>
+      <div class="row2">
+        <div><input type="number" id="adults" placeholder="Adults" value="4" min="1" max="30"></div>
+        <div><input type="number" id="children" placeholder="Children" value="2" min="0" max="15"></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Plot Facing (Main Gate Direction)</label>
+      <select id="facing">
+        <option value="North">North — Highly Auspicious</option>
+        <option value="East">East — Excellent for Vastu</option>
+        <option value="South">South — Acceptable</option>
+        <option value="West">West — Acceptable</option>
+        <option value="Northeast">Northeast (Ishanya)</option>
+        <option value="Northwest">Northwest (Vayavya)</option>
+        <option value="Southeast">Southeast (Agneya)</option>
+        <option value="Southwest">Southwest — Avoid if possible</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Number of Bedrooms</label>
+      <select id="bedroomCount">
+        <option value="1">1 Bedroom (Bachelor/Studio)</option>
+        <option value="2">2 Bedrooms (Small family)</option>
+        <option value="3" selected>3 Bedrooms (Standard)</option>
+        <option value="4">4 Bedrooms (Large family)</option>
+        <option value="5">5 Bedrooms (Joint family)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Spaces Required</label>
+      <div class="check-group" id="roomChecks">
+        <label class="check-item"><input type="checkbox" value="Living Room" checked><div class="check-box"></div><span class="check-label">🛋 Living / Drawing Room</span></label>
+        <label class="check-item"><input type="checkbox" value="Dining Room" checked><div class="check-box"></div><span class="check-label">🍽 Dining Room</span></label>
+        <label class="check-item"><input type="checkbox" value="Kitchen" checked><div class="check-box"></div><span class="check-label">🍳 Kitchen</span></label>
+        <label class="check-item"><input type="checkbox" value="Verandah" checked><div class="check-box"></div><span class="check-label">🌿 Verandah (Front)</span></label>
+        <label class="check-item"><input type="checkbox" value="Porch"><div class="check-box"></div><span class="check-label">🏛 Porch / Portico</span></label>
+        <label class="check-item"><input type="checkbox" value="Puja Room" checked><div class="check-box"></div><span class="check-label">🪔 Puja / Mandir Room</span></label>
+        <label class="check-item"><input type="checkbox" value="Study Room"><div class="check-box"></div><span class="check-label">📚 Study / Home Office</span></label>
+        <label class="check-item"><input type="checkbox" value="Store Room"><div class="check-box"></div><span class="check-label">📦 Store Room / Utility</span></label>
+        <label class="check-item"><input type="checkbox" value="Garage"><div class="check-box"></div><span class="check-label">🚗 Garage / Car Parking</span></label>
+        <label class="check-item"><input type="checkbox" value="Servant Quarter"><div class="check-box"></div><span class="check-label">🏠 Servant Quarter</span></label>
+        <label class="check-item"><input type="checkbox" value="Garden / Courtyard"><div class="check-box"></div><span class="check-label">🌳 Garden / Courtyard</span></label>
+        <label class="check-item"><input type="checkbox" value="Terrace Garden"><div class="check-box"></div><span class="check-label">🌻 Terrace / Sit-out</span></label>
+        <label class="check-item"><input type="checkbox" value="Balcony"><div class="check-box"></div><span class="check-label">🌇 Balcony (upper floors)</span></label>
+        <label class="check-item"><input type="checkbox" value="Lift / Staircase" checked><div class="check-box"></div><span class="check-label">🪜 Staircase</span></label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Practical Requirements</label>
+      <div class="check-group">
+        <label class="check-item"><input type="checkbox" id="req_vastu" checked><div class="check-box"></div><span class="check-label">♾ Vastu Shastra compliance</span></label>
+        <label class="check-item"><input type="checkbox" id="req_ventilation" checked><div class="check-box"></div><span class="check-label">💨 Cross ventilation in all rooms</span></label>
+        <label class="check-item"><input type="checkbox" id="req_sunlight" checked><div class="check-box"></div><span class="check-label">☀️ Natural light in all rooms</span></label>
+        <label class="check-item"><input type="checkbox" id="req_privacy"><div class="check-box"></div><span class="check-label">🔒 Master bedroom privacy (away from entrance)</span></label>
+        <label class="check-item"><input type="checkbox" id="req_elderly"><div class="check-box"></div><span class="check-label">👴 Senior citizen friendly (ground floor bedroom)</span></label>
+        <label class="check-item"><input type="checkbox" id="req_accessible"><div class="check-box"></div><span class="check-label">♿ Wheelchair accessible passages (min 4ft)</span></label>
+        <label class="check-item"><input type="checkbox" id="req_rental"><div class="check-box"></div><span class="check-label">🏠 Rental unit on upper floor</span></label>
+        <label class="check-item"><input type="checkbox" id="req_solar"><div class="check-box"></div><span class="check-label">⚡ Solar panel provision on roof</span></label>
+        <label class="check-item"><input type="checkbox" id="req_rainwater"><div class="check-box"></div><span class="check-label">💧 Rainwater harvesting pit (NE)</span></label>
+        <label class="check-item"><input type="checkbox" id="req_homeshop"><div class="check-box"></div><span class="check-label">🏪 Home shop / clinic on ground floor</span></label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Additional Notes (Optional)</label>
+      <textarea id="special" placeholder="e.g. Joint family, pet area, swimming pool, home theatre, basement, underground tank location, existing tree to preserve..."></textarea>
+    </div>
+
+    <div class="field">
+      <label>Vastu Approach</label>
+      <select id="vastuLevel">
+        <option value="strict">Strict — Traditional Vastu only</option>
+        <option value="moderate" selected>Balanced — Vastu + Modern practicality</option>
+        <option value="basic">Flexible — Core Vastu guidelines only</option>
+        <option value="none">Modern — No Vastu (pure functional)</option>
+      </select>
+    </div>
+
+    <div id="errorBox" class="error-box"></div>
+
+    <button class="btn-generate" id="generateBtn" onclick="generatePlan()">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      Generate AI Floor Plan
+    </button>
+  </div>
+
+  <div class="panel results-panel" id="resultsPanel">
+    <div class="empty-state" id="emptyState">
+      <div class="icon">📐</div>
+      <h3>Your plan will appear here</h3>
+      <p>Fill in the details on the left and click Generate</p>
+    </div>
+
+    <div class="loading" id="loadingDiv">
+      <div class="blueprint-anim">
+        <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
+          <circle cx="60" cy="60" r="54" stroke="rgba(201,168,76,0.1)" stroke-width="3"/>
+          <circle cx="60" cy="60" r="54" stroke="url(#grad)" stroke-width="3" stroke-dasharray="120 220" stroke-linecap="round"/>
+          <defs><linearGradient id="grad" x1="0" y1="0" x2="120" y2="120"><stop stop-color="#c9a84c"/><stop offset="1" stop-color="#e8c97a" stop-opacity="0"/></linearGradient></defs>
+          <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="#c9a84c" font-size="22" font-family="serif">⌂</text>
+        </svg>
+      </div>
+      <div class="loading-text">Designing your floor plan<span class="dots"></span></div>
+      <div class="loading-sub" id="loadingSub">Calling AI for adjacency graph · Building BSP layout</div>
+    </div>
+
+    <div class="results" id="resultsDiv">
+      <div class="tabs">
+        <div class="tab active" onclick="showTab('plan')">📐 Floor Plan</div>
+        <div class="tab" onclick="showTab('rooms')">📋 Room Details</div>
+        <div class="tab" onclick="showTab('vastu')">🕉 Vastu Report</div>
+        <div class="tab" onclick="showTab('summary')">📊 Summary</div>
+      </div>
+
+      <div class="tab-content active fade-in" id="tab-plan">
+        <div class="canvas-toolbar">
+          <button class="btn-sm" onclick="zoomIn()">🔍+ Zoom In</button>
+          <button class="btn-sm" onclick="zoomOut()">🔍− Zoom Out</button>
+          <button class="btn-sm" onclick="resetZoom()">↺ Reset</button>
+          <button class="btn-sm primary" onclick="exportPDF()">⬇ Export PDF</button>
+        </div>
+        <div class="floor-switcher" id="floorSwitcher"></div>
+        <div class="canvas-wrap">
+          <canvas id="planCanvas" width="900" height="700"></canvas>
+          <div class="compass">
+            <svg width="40" height="40" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="19" stroke="#c9a84c" stroke-width="0.5" fill="none"/>
+              <text x="20" y="8" text-anchor="middle" fill="#c9a84c" font-size="7" font-family="monospace">N</text>
+              <text x="33" y="22" text-anchor="middle" fill="#7a8fa6" font-size="7" font-family="monospace">E</text>
+              <text x="20" y="34" text-anchor="middle" fill="#7a8fa6" font-size="7" font-family="monospace">S</text>
+              <text x="7" y="22" text-anchor="middle" fill="#7a8fa6" font-size="7" font-family="monospace">W</text>
+              <line x1="20" y1="12" x2="20" y2="20" stroke="#c9a84c" stroke-width="1.5"/>
+              <line x1="20" y1="28" x2="20" y2="20" stroke="#7a8fa6" stroke-width="1"/>
+            </svg>
+          </div>
+        </div>
+        <div class="scale-bar">
+          <div class="scale-line"></div>
+          <span id="scaleLabel">5 ft</span>
+        </div>
+        <div class="legend" id="legendDiv"></div>
+      </div>
+
+      <div class="tab-content fade-in" id="tab-rooms">
+        <table>
+          <thead>
+            <tr>
+              <th>Room</th><th>Zone</th><th>Direction</th><th>Size (ft)</th><th>Area (sq ft)</th><th>Vastu</th>
+            </tr>
+          </thead>
+          <tbody id="roomTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="tab-content fade-in" id="tab-vastu">
+        <div class="vastu-score-ring" id="vastuScoreCard"></div>
+        <div class="vastu-rules" id="vastuRules"></div>
+      </div>
+
+      <div class="tab-content fade-in" id="tab-summary">
+        <div class="summary-grid" id="summaryGrid"></div>
+        <div class="notes-section" id="notesSection"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Debug Panel -->
+<button id="debugToggle" onclick="toggleDebug()">🐛 Debug</button>
+<div id="debugPanel">
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+    <span style="color:var(--accent);font-weight:700;">VastuPlan Debug Console</span>
+    <span onclick="clearDebug()" style="cursor:pointer;color:var(--muted);">clear</span>
+  </div>
+  <div id="debugLog"></div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════════
+//  VASTUPLAN AI v4.0 — PRODUCTION RESIDENTIAL PLANNING ENGINE
+//  Architecture: Single AI call → Constraint BSP → Validation → Render
+// ═══════════════════════════════════════════════════════════════════════
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §1  INDIAN RESIDENTIAL STANDARDS DATABASE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const STD = {
+  // [minW, minH, prefW, prefH, maxW, maxH]  all in feet
+  rooms: {
+    'Living Room':        [12, 14, 16, 18, 22, 24],
+    'Drawing Room':       [12, 14, 16, 18, 20, 22],
+    'Dining Room':        [10, 11, 13, 14, 16, 18],
+    'Kitchen':            [ 8,  9, 10, 12, 14, 16],
+    'Master Bedroom':     [11, 13, 13, 15, 16, 18],
+    'Bedroom 2':          [10, 11, 12, 13, 15, 16],
+    'Bedroom 3':          [10, 10, 11, 12, 14, 15],
+    'Bedroom 4':          [ 9, 10, 11, 12, 13, 14],
+    'Bedroom 5':          [ 9, 10, 10, 11, 12, 13],
+    'Master Bathroom':    [ 5,  7,  6,  8,  8, 10],
+    'Attached Bathroom':  [ 5,  7,  5,  8,  7,  9],
+    'Bathroom 2':         [ 5,  6,  5,  7,  7,  8],
+    'Bathroom 3':         [ 4,  6,  5,  7,  6,  8],
+    'Common Bathroom':    [ 4,  6,  5,  7,  7,  9],
+    'Toilet':             [ 3,  5,  4,  6,  5,  7],
+    'Powder Room':        [ 3,  4,  3,  5,  4,  6],
+    'Puja Room':          [ 5,  6,  7,  8, 10, 10],
+    'Study Room':         [ 8,  8, 10, 10, 14, 14],
+    'Store Room':         [ 4,  5,  6,  7,  8, 10],
+    'Utility Room':       [ 5,  5,  6,  8,  9, 10],
+    'Garage':             [ 9, 18, 12, 20, 16, 24],
+    'Servant Quarter':    [ 8,  8, 10, 10, 12, 12],
+    'Staircase':          [ 6,  9,  8, 11, 10, 14],
+    'Lift / Staircase':   [ 6,  9,  8, 11, 10, 14],
+    'Corridor':           [ 3.5,6,  4,  8,  5, 12],
+    'Verandah':           [ 8,  5, 14,  6, 20,  8],
+    'Porch':              [ 8,  5, 12,  6, 18,  8],
+    'Balcony':            [ 5,  4,  8,  5, 12,  6],
+    'Garden / Courtyard': [ 8,  8, 14, 12, 20, 20],
+    'Terrace Garden':     [ 8,  8, 12, 12, 20, 20],
+    'Plumbing Shaft':     [ 2,  2,  2,  3,  3,  4],
+  },
+  // Aspect ratio valid range  (width / height)
+  aspect: { min: 0.60, max: 1.70 },
+  // Furniture minimum check
+  furniture: {
+    'Living Room':     { minArea: 155, check: (w,h)=> w>=12 && h>=13 },
+    'Master Bedroom':  { minArea: 130, check: (w,h)=> w>=10 && h>=11 },
+    'Bedroom':         { minArea: 100, check: (w,h)=> w>=9  && h>=10 },
+    'Dining Room':     { minArea:  90, check: (w,h)=> w>=9  && h>=10 },
+    'Kitchen':         { minArea:  70, check: (w,h)=> w>=7  && h>=8  },
+    'Master Bathroom': { minArea:  36, check: (w,h)=> w>=4  && h>=6  },
+    'Bathroom':        { minArea:  28, check: (w,h)=> w>=4  && h>=5  },
+    'Toilet':          { minArea:  18, check: (w,h)=> w>=3  && h>=4  },
+  },
+  // Dining table by occupant count  [seats, tableW, tableH, clearance]
+  diningTable(n) {
+    if (n <= 4)  return { seats:4, tw:3.0, th:4.0, cl:3 };
+    if (n <= 6)  return { seats:6, tw:3.0, th:5.0, cl:3 };
+    if (n <= 8)  return { seats:8, tw:3.5, th:6.0, cl:3 };
+    return            { seats:10,tw:4.0, th:7.0, cl:3.5 };
+  },
+  // Toilet count by BHK
+  toiletCount: { 1:1, 2:2, 3:3, 4:3, 5:4 },
+  // Wall thickness ft
+  wall: { outer: 0.75, inner: 0.42, light: 0.25 },
+  // Minimum corridor
+  corridor: 3.5,
+};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §2  VASTU KNOWLEDGE BASE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const VASTU = {
+  direction: {
+    'Living Room':'NE','Drawing Room':'N','Dining Room':'W',
+    'Kitchen':'SE','Master Bedroom':'SW','Bedroom 2':'S',
+    'Bedroom 3':'W','Bedroom 4':'NW','Bedroom 5':'N',
+    'Puja Room':'NE','Study Room':'W','Master Bathroom':'SE',
+    'Attached Bathroom':'SE','Common Bathroom':'NW','Bathroom 2':'NW',
+    'Bathroom 3':'NW','Toilet':'NW','Powder Room':'NW',
+    'Store Room':'NW','Garage':'NW','Servant Quarter':'NW',
+    'Staircase':'S','Lift / Staircase':'S','Verandah':'N',
+    'Porch':'N','Balcony':'NE','Garden / Courtyard':'NE',
+    'Utility Room':'NW','Plumbing Shaft':'SE',
+  },
+  zone(name) {
+    const n = name.toLowerCase();
+    if (n.includes('living')||n.includes('drawing')||n.includes('verandah')||
+        n.includes('porch')||n.includes('garden')||n.includes('garage')) return 'public';
+    if (n.includes('dining')||n.includes('kitchen')||n.includes('puja')||
+        n.includes('study')||n.includes('balcony')) return 'semipublic';
+    if (n.includes('bath')||n.includes('toilet')||n.includes('powder')||
+        n.includes('stair')||n.includes('store')||n.includes('utility')||
+        n.includes('servant')||n.includes('shaft')) return 'service';
+    return 'private'; // bedrooms
+  },
+  priority(name) {
+    const n = name.toLowerCase();
+    if (n.includes('master')) return 1;
+    if (n.includes('living')||n.includes('drawing')) return 2;
+    if (n.includes('kitchen')||n.includes('dining')) return 3;
+    if (n.includes('bedroom')) return 4;
+    if (n.includes('stair')) return 5;
+    if (n.includes('bath')||n.includes('toilet')||n.includes('powder')) return 6;
+    if (n.includes('puja')) return 7;
+    if (n.includes('study')) return 8;
+    if (n.includes('verandah')||n.includes('porch')) return 9;
+    if (n.includes('shaft')) return 10;
+    return 11;
+  },
+  // Forbidden adjacencies
+  forbidden: [
+    ['Kitchen','Master Bedroom'],['Toilet','Kitchen'],
+    ['Toilet','Dining Room'],['Puja Room','Toilet'],
+    ['Puja Room','Kitchen'],
+  ],
+};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §3  GLOBAL APPLICATION STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const APP = {
+  floors: [], currentFloor: 0, zoom: 1,
+  adjacencyCache: null, vastuScore: 75,
+  plotW: 40, plotH: 60, facing: 'North',
+  drawingScale: 50, familySize: 6, bedCount: 3,
+  shaftPos: null,   // { x, y, w, h } — plumbing shaft coords
+  stairPos: null,   // staircase coords
+  legendUsed: new Set(),
+};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §4  DEBUG + UI HELPERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function dlog(msg, type='info') {
+  const el = document.getElementById('debugLog');
+  if (!el) return;
+  const t = new Date().toLocaleTimeString('en',{hour12:false});
+  el.innerHTML += `<div class="dlog-${type}">[${t}] ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+function toggleDebug() { document.getElementById('debugPanel').classList.toggle('visible'); }
+function clearDebug()  { document.getElementById('debugLog').innerHTML = ''; }
+
+function showTab(id) {
+  const ids = ['plan','rooms','vastu','summary'];
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ids[i]===id));
+  document.querySelectorAll('.tab-content').forEach((c,i) => c.classList.toggle('active', ids[i]===id));
+}
+function showError(msg) {
+  const el = document.getElementById('errorBox');
+  el.textContent = msg; el.style.display = 'block';
+}
+function hideError() {
+  const el = document.getElementById('errorBox');
+  el.style.display = 'none'; el.textContent = '';
+}
+function setLoading(on, msg='') {
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('loadingDiv').classList.toggle('active', on);
+  document.getElementById('resultsDiv').classList.toggle('active', !on && APP.floors.length>0);
+  document.getElementById('generateBtn').disabled = on;
+  if (msg) document.getElementById('loadingSub').textContent = msg;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §5  PROPORTION + FURNITURE VALIDATION ENGINE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function validateProportion(w, h) {
+  if (w <= 0 || h <= 0) return false;
+  const ratio = w / h;
+  return ratio >= STD.aspect.min && ratio <= STD.aspect.max;
+}
+
+function validateFurniture(room) {
+  const n = room.name.toLowerCase();
+  let key = null;
+  if (n.includes('master bedroom')) key = 'Master Bedroom';
+  else if (n.includes('bedroom'))   key = 'Bedroom';
+  else if (n.includes('living')||n.includes('drawing')) key = 'Living Room';
+  else if (n.includes('dining'))    key = 'Dining Room';
+  else if (n.includes('kitchen'))   key = 'Kitchen';
+  else if (n.includes('master bath')) key = 'Master Bathroom';
+  else if (n.includes('bath'))      key = 'Bathroom';
+  else if (n.includes('toilet')||n.includes('powder')) key = 'Toilet';
+  if (!key) return true;
+  const spec = STD.furniture[key];
+  if (!spec) return true;
+  const area = room.w * room.h;
+  return area >= spec.minArea * 0.8 && spec.check(room.w, room.h);
+}
+
+// Snap W/H to valid Indian standard for a given room
+function snapToStandard(name, w, h, plotW, plotH) {
+  const spec = STD.rooms[name] || STD.rooms['default'] || [6,8,10,12,14,16];
+  const [minW, minH, prefW, prefH, maxW, maxH] = spec;
+  // Scale preference to plot size
+  const scaleF = Math.min(1.2, (plotW * plotH * 0.85) / 800); // 800 sq ft baseline
+  let tw = Math.max(minW, Math.min(maxW, Math.round(prefW * Math.sqrt(scaleF) * 2) / 2));
+  let th = Math.max(minH, Math.min(maxH, Math.round(prefH * Math.sqrt(scaleF) * 2) / 2));
+  // Apply supplied hints, clamped
+  if (w > 0) tw = Math.max(minW, Math.min(maxW, w));
+  if (h > 0) th = Math.max(minH, Math.min(maxH, h));
+  // Fix bad aspect ratio
+  if (!validateProportion(tw, th)) {
+    const mid = Math.sqrt(tw * th);
+    const r   = Math.sqrt(STD.aspect.max * STD.aspect.min);
+    tw = Math.round(mid * r * 2) / 2;
+    th = Math.round((mid / r) * 2) / 2;
+    tw = Math.max(minW, Math.min(maxW, Math.min(tw, plotW * 0.7)));
+    th = Math.max(minH, Math.min(maxH, Math.min(th, plotH * 0.7)));
+  }
+  return { w: tw, h: th };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §6  PLUMBING SHAFT ENGINE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function computeShaftPosition(plotW, plotH, facing) {
+  // Shaft in SE quadrant (Vastu) near kitchen/baths
+  const f = facing.toLowerCase();
+  let sx, sy;
+  if (f.includes('north') || f.includes('east')) {
+    sx = plotW * 0.70; sy = plotH * 0.05;        // SE area
+  } else {
+    sx = plotW * 0.70; sy = plotH * 0.72;
+  }
+  const sw = 2.0, sh = 2.5;
+  sx = Math.min(sx, plotW - sw - 1);
+  sy = Math.min(sy, plotH - sh - 1);
+  return { x: sx, y: sy, w: sw, h: sh };
+}
+
+function alignRoomsToShaft(rooms, shaft, plotW, plotH) {
+  rooms.forEach(r => {
+    const n = r.name.toLowerCase();
+    const isPlumbed = n.includes('bath') || n.includes('toilet') ||
+                      n.includes('kitchen') || n.includes('utility') ||
+                      n.includes('powder') || n.includes('shaft');
+    if (isPlumbed) {
+      // Try to snap to shaft edge
+      const distR = Math.abs((r.x + r.w) - shaft.x);
+      const distL = Math.abs(r.x - (shaft.x + shaft.w));
+      const distT = Math.abs((r.y + r.h) - shaft.y);
+      const distB = Math.abs(r.y - (shaft.y + shaft.h));
+      const minDist = Math.min(distR, distL, distT, distB);
+      if (minDist < plotW * 0.3) {
+        if (minDist === distR) r.x = shaft.x - r.w;
+        if (minDist === distL) r.x = shaft.x + shaft.w;
+        if (minDist === distT) r.y = shaft.y - r.h;
+        if (minDist === distB) r.y = shaft.y + shaft.h;
+        r.x = Math.max(0, Math.min(r.x, plotW - r.w));
+        r.y = Math.max(0, Math.min(r.y, plotH - r.h));
+      }
+    }
+  });
+  return rooms;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §7  STAIRCASE CORE ENGINE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function computeStairPosition(plotW, plotH, facing) {
+  // Vastu: staircase in S or SW
+  const f = facing.toLowerCase();
+  let sx, sy, sw = 8, sh = 11;
+  if (f.includes('north')) {
+    sx = plotW * 0.35; sy = plotH - sh - 1;     // SW
+  } else if (f.includes('east')) {
+    sx = 1;            sy = plotH - sh - 1;     // SW
+  } else if (f.includes('south')) {
+    sx = plotW * 0.35; sy = 1;                  // N (reversed entry)
+  } else {
+    sx = plotW - sw - 1; sy = plotH - sh - 1;
+  }
+  sx = Math.max(1, Math.min(sx, plotW - sw - 1));
+  sy = Math.max(1, Math.min(sy, plotH - sh - 1));
+  return { x: sx, y: sy, w: sw, h: sh };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §8  CIRCULATION SOLVER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function fixCirculation(rooms, plotW, plotH, facing) {
+  // Ensure living room is near entry
+  const f = facing.toLowerCase();
+  const living = rooms.find(r => r.name==='Living Room'||r.name==='Drawing Room');
+  if (living) {
+    if (f.includes('north'))      { living.y = 0; }
+    else if (f.includes('south')) { living.y = plotH - living.h; }
+    else if (f.includes('east'))  { living.x = plotW - living.w; }
+    else                          { living.x = 0; }
+    living.x = Math.max(0, Math.min(living.x, plotW - living.w));
+    living.y = Math.max(0, Math.min(living.y, plotH - living.h));
+  }
+  // Avoid bedroom directly accessible via kitchen: push bedrooms away from kitchen
+  const kitchen  = rooms.find(r => r.name==='Kitchen');
+  const bedrooms = rooms.filter(r => r.name.toLowerCase().includes('bedroom'));
+  if (kitchen) {
+    bedrooms.forEach(b => {
+      const kx2 = kitchen.x + kitchen.w, ky2 = kitchen.y + kitchen.h;
+      const bx2 = b.x + b.w,             by2 = b.y + b.h;
+      const xOv = Math.min(kx2,bx2) - Math.max(kitchen.x,b.x);
+      const yOv = Math.min(ky2,by2) - Math.max(kitchen.y,b.y);
+      if (xOv > 1 && yOv > 1) {
+        // they overlap — push bedroom
+        b.x += kitchen.w + 1;
+        b.x = Math.min(b.x, plotW - b.w);
+      }
+    });
+  }
+  // Avoid toilet opening to dining: separate them
+  const toilets = rooms.filter(r => r.name.toLowerCase().includes('toilet')||r.name.toLowerCase().includes('powder'));
+  const dining  = rooms.find(r => r.name==='Dining Room');
+  if (dining) {
+    toilets.forEach(t => {
+      const dx2 = dining.x + dining.w, dy2 = dining.y + dining.h;
+      const tx2 = t.x + t.w,           ty2 = t.y + t.h;
+      if (Math.abs(dining.x - tx2) < 2 || Math.abs(dx2 - t.x) < 2) {
+        t.x = Math.max(0, Math.min(t.x + dining.w, plotW - t.w));
+      }
+    });
+  }
+  return rooms;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §9  KITCHEN WORK TRIANGLE ENGINE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function computeKitchenTriangle(rx, ry, rw, rh) {
+  // Returns {sink, fridge, cooktop} positions in canvas coords
+  // L-shaped platform: sink on external wall side, cooktop on perpendicular
+  const pd = Math.min(rw * 0.22, 20); // platform depth px
+  return {
+    platform1: { x: rx, y: ry, w: rw,  h: pd },          // top counter
+    platform2: { x: rx + rw - pd, y: ry, w: pd, h: rh },  // right counter (L)
+    sink:   { x: rx + rw * 0.25, y: ry + 2, w: 14, h: pd - 4 },
+    cooktop:{ x: rx + rw * 0.55, y: ry + 2, w: 12, h: pd - 4 },
+    fridge: { x: rx + rw - pd + 2, y: ry + 2, w: pd - 4, h: Math.min(pd + 4, 18) },
+  };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §10  COMPACT AI PROMPT (single call)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function buildPrompt({ rooms, plotW, plotH, facing, vastuLevel, bedCount, familySize }) {
+  const list = rooms.map(r=>r.name).join(', ');
+  return `Vastu residential architect. Plot: ${plotW}x${plotH}ft, facing: ${facing}, vastu: ${vastuLevel}, ${bedCount}BHK, family: ${familySize}.
+Rooms: ${list}
+Return ONLY valid JSON, no markdown:
+{"rooms":[{"name":"Living Room","zone":"public","direction":"NE","adjacent":["Dining Room","Verandah"],"priority":2,"vastuOk":true}],"vastuScore":82,"notes":"one line"}
+Rules: Puja/NE, Kitchen/SE, MasterBed/SW, Living/NE, Bath/NW|SE. zone=public|semipublic|private|service.`;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §11  SAFE JSON PARSER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function safeParseJSON(raw) {
+  let text = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'');
+  const s = text.indexOf('{'), e = text.lastIndexOf('}');
+  if (s===-1||e===-1) return null;
+  const str = text.slice(s, e+1);
+  try { return JSON.parse(str); } catch {
+    try { return JSON.parse(str.replace(/,(\s*[}\]])/g,'$1')); } catch { return null; }
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §12  GROQ API  (single call, 25s timeout)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function callGroq(apiKey, prompt) {
+  dlog(`Groq call: ${prompt.length} char prompt`, 'info');
+  const ctrl = new AbortController();
+  const tid  = setTimeout(()=>ctrl.abort(), 25000);
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST', signal: ctrl.signal,
+      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile', max_tokens: 1400, temperature: 0.15,
+        messages: [
+          { role:'system', content:'Return valid JSON only. No markdown. No explanation.' },
+          { role:'user',   content: prompt },
+        ],
+      }),
+    });
+    clearTimeout(tid);
+    if (!res.ok) {
+      const t = await res.text();
+      dlog(`API ${res.status}: ${t.slice(0,160)}`, 'err');
+      if (res.status===401) throw new Error('Invalid API key. Get free key at console.groq.com');
+      if (res.status===429) throw new Error('Rate limited — wait 10 s and retry');
+      throw new Error(`API error ${res.status}`);
+    }
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    dlog(`Response: ${content.length} chars`, 'ok');
+    return content;
+  } catch(e) {
+    clearTimeout(tid);
+    if (e.name==='AbortError') throw new Error('Request timed out');
+    throw e;
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §13  DETERMINISTIC FALLBACK
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function vastuFallback(names, facing, bedCount) {
+  dlog('Using deterministic Vastu fallback', 'warn');
+  const adj = {
+    'Living Room':['Dining Room','Verandah','Puja Room'],
+    'Dining Room':['Kitchen','Living Room'],
+    'Kitchen':['Dining Room','Store Room','Utility Room'],
+    'Master Bedroom':['Master Bathroom'],
+    'Bedroom 2':['Attached Bathroom'],
+    'Staircase':[], 'Plumbing Shaft':[],
+  };
+  return {
+    rooms: names.map(name => ({
+      name, zone: VASTU.zone(name),
+      direction: VASTU.direction[name]||'N',
+      adjacent: adj[name]||[],
+      priority: VASTU.priority(name),
+      vastuOk: true,
+    })),
+    vastuScore: 70,
+    notes: 'Deterministic Vastu template — AI fallback applied.',
+  };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §14  WASHROOM GENERATION ENGINE  (civil engineering rules)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function makeWashroomSet(bedCount, plotW) {
+  const mk = (name, type) => ({
+    name, zone:'service',
+    direction: type==='master' ? 'SE' : 'NW',
+    adjacent: type==='master' ? ['Master Bedroom'] : [],
+    priority: 6, vastuOk: true, _wType: type,
+  });
+  if (bedCount <= 1) return [mk('Attached Bathroom','attached')];
+  if (bedCount === 2) return [mk('Master Bathroom','master'), mk('Common Bathroom','common')];
+  const set = [mk('Master Bathroom','master'), mk('Common Bathroom','common')];
+  if (bedCount >= 3) set.push(mk('Bathroom 2','attached'));
+  if (bedCount >= 4 && plotW >= 30) set.push(mk('Bathroom 3','attached'));
+  if (bedCount >= 5 && plotW >= 38) set.push(mk('Powder Room','powder'));
+  return set;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §15  FLOOR DISTRIBUTION ENGINE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function distributeFloors(allRooms, floorsVal, bedCount, plotW, elderlyReq) {
+  const floorNames = {
+    'G':   ['Ground Floor'],
+    'G+1': ['Ground Floor','First Floor'],
+    'G+2': ['Ground Floor','First Floor','Second Floor'],
+    'G+3': ['Ground Floor','First Floor','Second Floor','Third Floor'],
+  }[floorsVal] || ['Ground Floor'];
+
+  const nFloors = floorNames.length;
+  const beds = allRooms.filter(r => r.name.toLowerCase().includes('bed'));
+  const publicR  = allRooms.filter(r =>
+    ['Living Room','Drawing Room','Dining Room','Kitchen','Verandah',
+     'Porch','Puja Room','Garage','Garden / Courtyard'].includes(r.name));
+  const serviceR = allRooms.filter(r =>
+    ['Store Room','Servant Quarter','Utility Room'].includes(r.name));
+  const upperR   = allRooms.filter(r =>
+    ['Study Room','Balcony','Terrace Garden'].includes(r.name));
+  const stairR   = allRooms.filter(r =>
+    r.name==='Staircase'||r.name==='Lift / Staircase');
+  const shaftR   = allRooms.filter(r => r.name==='Plumbing Shaft');
+
+  const washroomSet = makeWashroomSet(bedCount, plotW);
+
+  return floorNames.map((name, fi) => {
+    const isGround = fi === 0;
+    const isTop    = fi === nFloors - 1;
+    const perFloor = Math.ceil(beds.length / nFloors);
+    const bedSlice = beds.slice(fi * perFloor, (fi+1) * perFloor);
+    const wSlice   = washroomSet; // shared design replicated per floor
+
+    let rooms = [];
+    if (isGround) {
+      rooms = [...publicR];
+      if (elderlyReq || nFloors===1) {
+        const mb = beds.find(b=>b.name==='Master Bedroom');
+        if (mb) rooms.push(mb);
+        rooms.push(...wSlice.filter(w=>w._wType==='master'||w._wType==='common'));
+      } else {
+        rooms.push(...bedSlice);
+        if (bedSlice.length) rooms.push(...wSlice.filter(w=>w._wType!=='master'));
+      }
+      rooms.push(...serviceR, ...shaftR);
+      if (nFloors > 1) rooms.push(...stairR);
+    } else if (isTop && nFloors > 2) {
+      rooms = [...bedSlice, ...upperR];
+      if (bedSlice.length) rooms.push(...wSlice.filter(w=>w._wType!=='powder'));
+      rooms.push(...stairR, ...shaftR);
+    } else {
+      rooms = [...bedSlice, ...upperR.filter(r=>r.name!=='Terrace Garden')];
+      if (bedSlice.length) rooms.push(...wSlice);
+      rooms.push(...stairR, ...shaftR);
+    }
+
+    // De-dup
+    const seen = new Set();
+    rooms = rooms.filter(r => {
+      if (seen.has(r.name)) return false;
+      seen.add(r.name); return true;
+    });
+
+    return { name, rooms };
+  });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §16  WEIGHTED CONSTRAINT BSP LAYOUT ENGINE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Assign proportional room sizes from STD + plot scaling
+function assignSizes(rooms, plotW, plotH) {
+  const usable = plotW * plotH * 0.82;
+  const prefSum = rooms.reduce((s,r) => {
+    const [,,pw,ph] = STD.rooms[r.name] || [6,8,9,11,14,16];
+    return s + pw * ph;
+  }, 0) || 1;
+  const sf = Math.min(1.3, usable / prefSum);
+
+  return rooms.map(r => {
+    const snap = snapToStandard(r.name, 0, 0, plotW, plotH);
+    let w = Math.round(snap.w * Math.sqrt(sf) * 2) / 2;
+    let h = Math.round(snap.h * Math.sqrt(sf) * 2) / 2;
+    const spec = STD.rooms[r.name] || [6,8,9,11,14,16];
+    w = Math.max(spec[0], Math.min(spec[4]||14, Math.min(w, plotW*0.7)));
+    h = Math.max(spec[1], Math.min(spec[5]||16, Math.min(h, plotH*0.7)));
+    // Fix aspect
+    if (!validateProportion(w,h)) {
+      const mid = Math.sqrt(w*h);
+      const ra  = Math.sqrt(STD.aspect.max * STD.aspect.min);
+      w = Math.max(spec[0], Math.round(mid * ra * 2)/2);
+      h = Math.max(spec[1], Math.round(mid / ra * 2)/2);
+    }
+    return { ...r, w, h };
+  });
+}
+
+// Compute target region for a room based on zone + facing direction
+function targetRect(room, plotW, plotH, facing) {
+  const f  = facing.toLowerCase();
+  const fr = { NE:'ne', N:'n', E:'e', SE:'se', S:'s', SW:'sw', W:'w', NW:'nw' };
+  const dir = fr[room.direction] || 'n';
+  // x: 0=W, plotW=E  |  y: 0=N, plotH=S
+  const zones = {
+    ne: { fx:0.0, fy:0.0, fw:0.5, fh:0.5 },
+    n:  { fx:0.2, fy:0.0, fw:0.6, fh:0.4 },
+    e:  { fx:0.5, fy:0.0, fw:0.5, fh:0.6 },
+    se: { fx:0.5, fy:0.0, fw:0.5, fh:0.5 },
+    s:  { fx:0.2, fy:0.6, fw:0.6, fh:0.4 },
+    sw: { fx:0.0, fy:0.5, fw:0.5, fh:0.5 },
+    w:  { fx:0.0, fy:0.2, fw:0.4, fh:0.6 },
+    nw: { fx:0.0, fy:0.0, fw:0.5, fh:0.5 },
+  };
+  // Flip for south-facing
+  const fz = zones[dir] || zones.n;
+  let fx = fz.fx, fy = fz.fy;
+  if (f.includes('south')) { fx = fz.fx; fy = 1 - fz.fy - fz.fh; }
+  if (f.includes('west'))  { fx = 1 - fz.fx - fz.fw; }
+  return { x: fx*plotW, y: fy*plotH, w: fz.fw*plotW, h: fz.fh*plotH };
+}
+
+// Core BSP partition — recursively split plot rect among rooms
+function bspSplit(rect, rooms) {
+  if (rooms.length === 0) return [];
+  if (rooms.length === 1) {
+    const r = rooms[0];
+    const w = Math.max(r.w, Math.min(r.w, rect.w));
+    const h = Math.max(r.h, Math.min(r.h, rect.h));
+    return [{ ...r, x:rect.x, y:rect.y, w, h }];
+  }
+  const sorted = [...rooms].sort((a,b) => a.priority - b.priority || b.w*b.h - a.w*a.h);
+  const half   = Math.ceil(sorted.length / 2);
+  const g1     = sorted.slice(0, half);
+  const g2     = sorted.slice(half);
+  const a1     = g1.reduce((s,r)=>s+r.w*r.h, 0);
+  const a2     = g2.reduce((s,r)=>s+r.w*r.h, 0);
+  const total  = a1 + a2 || 1;
+  const splitH = rect.w >= rect.h;
+  let r1, r2;
+  if (splitH) {
+    const sp = Math.max(g1[0].w, Math.min(rect.w - (g2[0]?.w||4), rect.w * a1 / total));
+    const s  = Math.round(sp * 2) / 2;
+    r1 = { x:rect.x,   y:rect.y, w:s,          h:rect.h };
+    r2 = { x:rect.x+s, y:rect.y, w:rect.w-s,   h:rect.h };
+  } else {
+    const sp = Math.max(g1[0].h, Math.min(rect.h - (g2[0]?.h||4), rect.h * a1 / total));
+    const s  = Math.round(sp * 2) / 2;
+    r1 = { x:rect.x, y:rect.y,   w:rect.w, h:s          };
+    r2 = { x:rect.x, y:rect.y+s, w:rect.w, h:rect.h-s   };
+  }
+  return [...bspSplit(r1, g1), ...bspSplit(r2, g2)];
+}
+
+// Place rooms with Vastu directional bias
+function placeWithBias(rooms, plotW, plotH, facing) {
+  // 1: Get ideal target positions
+  const targets = rooms.map(r => ({ r, t: targetRect(r, plotW, plotH, facing) }));
+  // 2: Sort by priority, place greedily
+  const placed = [];
+  const occupancy = [];  // { x1,y1,x2,y2 }
+
+  // BSP provides base geometry first
+  const base = bspSplit({ x:0, y:0, w:plotW, h:plotH }, rooms);
+
+  // 3: Bias placed positions toward target
+  base.forEach((r, i) => {
+    const tg = targets.find(t => t.r.name === r.name)?.t;
+    if (tg) {
+      // Nudge toward target center
+      const tcx = tg.x + tg.w/2, tcy = tg.y + tg.h/2;
+      const rcx = r.x + r.w/2,   rcy = r.y + r.h/2;
+      const nx  = r.x + (tcx - rcx) * 0.45;
+      const ny  = r.y + (tcy - rcy) * 0.45;
+      r.x = Math.max(0, Math.min(nx, plotW - r.w));
+      r.y = Math.max(0, Math.min(ny, plotH - r.h));
+    }
+  });
+
+  return base;
+}
+
+// Snap shared walls between adjacent rooms
+function snapWalls(rooms) {
+  const SNAP = 1.2;
+  for (let i=0; i<rooms.length; i++) {
+    for (let j=i+1; j<rooms.length; j++) {
+      const a=rooms[i], b=rooms[j];
+      if (Math.abs((a.x+a.w)-b.x) < SNAP) { const nx=(a.x+a.w+b.x)/2; a.w=nx-a.x; b.x=nx; }
+      if (Math.abs(a.x-(b.x+b.w)) < SNAP) { const nx=(a.x+b.x+b.w)/2; b.w=nx-b.x; a.x=nx; }
+      if (Math.abs((a.y+a.h)-b.y) < SNAP) { const ny=(a.y+a.h+b.y)/2; a.h=ny-a.y; b.y=ny; }
+      if (Math.abs(a.y-(b.y+b.h)) < SNAP) { const ny=(a.y+b.y+b.h)/2; b.h=ny-b.y; a.y=ny; }
+    }
+  }
+  return rooms;
+}
+
+// Resolve overlaps — 8-pass iterative push
+function resolveOverlaps(rooms, plotW, plotH) {
+  for (let pass=0; pass<8; pass++) {
+    for (let i=0; i<rooms.length; i++) {
+      for (let j=i+1; j<rooms.length; j++) {
+        const a=rooms[i], b=rooms[j];
+        const ox = Math.min(a.x+a.w, b.x+b.w) - Math.max(a.x, b.x);
+        const oy = Math.min(a.y+a.h, b.y+b.h) - Math.max(a.y, b.y);
+        if (ox>0.4 && oy>0.4) {
+          if (ox <= oy) {
+            const shift = ox / 2;
+            if (b.priority <= a.priority) a.x -= shift; else b.x += shift;
+          } else {
+            const shift = oy / 2;
+            if (b.priority <= a.priority) a.y -= shift; else b.y += shift;
+          }
+          rooms[i].x = Math.max(0, Math.min(rooms[i].x, plotW-rooms[i].w));
+          rooms[i].y = Math.max(0, Math.min(rooms[i].y, plotH-rooms[i].h));
+          rooms[j].x = Math.max(0, Math.min(rooms[j].x, plotW-rooms[j].w));
+          rooms[j].y = Math.max(0, Math.min(rooms[j].y, plotH-rooms[j].h));
+        }
+      }
+    }
+  }
+  return rooms;
+}
+
+// Clamp verandah/porch to entry edge
+function placeEntrySpaces(rooms, plotW, plotH, facing) {
+  const f = facing.toLowerCase();
+  return rooms.map(r => {
+    const n = r.name.toLowerCase();
+    if (!n.includes('verandah') && !n.includes('porch')) return r;
+    if (f.includes('north'))  return { ...r, x: Math.max(0,(plotW-r.w)/2), y:0, h:Math.min(r.h,7) };
+    if (f.includes('south'))  return { ...r, x: Math.max(0,(plotW-r.w)/2), y:plotH-r.h, h:Math.min(r.h,7) };
+    if (f.includes('east'))   return { ...r, x:plotW-r.w, y:Math.max(0,(plotH-r.h)/2), w:Math.min(r.w,7) };
+    return { ...r, x:0, y:Math.max(0,(plotH-r.h)/2), w:Math.min(r.w,7) };
+  });
+}
+
+// Attach bathrooms to parent bedrooms
+function attachBathrooms(rooms, plotW, plotH) {
+  const beds = rooms.filter(r => r.name.toLowerCase().includes('bedroom'));
+  beds.forEach(bed => {
+    // Find attached/master bath
+    const bathnm = bed.name==='Master Bedroom' ? ['Master Bathroom','Attached Bathroom']
+                                                : ['Attached Bathroom','Bathroom 2','Bathroom 3'];
+    const bath   = rooms.find(r => bathnm.includes(r.name) &&
+                                   !beds.some(ob => ob.name!==bed.name && Math.abs(ob.x-(r.x+r.w))<2));
+    if (!bath) return;
+    const rightX = bed.x + bed.w;
+    if (rightX + bath.w <= plotW + 1) {
+      bath.x = bed.x + bed.w; bath.y = bed.y;
+      bath.h = Math.min(bath.h, bed.h);
+    } else {
+      bath.x = Math.max(0, bed.x); bath.y = bed.y + bed.h;
+      bath.w = Math.min(bath.w, bed.w);
+    }
+    bath.x = Math.max(0, Math.min(bath.x, plotW - bath.w));
+    bath.y = Math.max(0, Math.min(bath.y, plotH - bath.h));
+  });
+  return rooms;
+}
+
+// Add plumbing shaft as a room element
+function injectShaft(rooms, shaftPos) {
+  if (!rooms.find(r => r.name==='Plumbing Shaft')) {
+    rooms.push({
+      name:'Plumbing Shaft', zone:'service',
+      direction:'SE', priority:10, vastuOk:true,
+      x:shaftPos.x, y:shaftPos.y, w:shaftPos.w, h:shaftPos.h,
+      _fixed:true,
+    });
+  }
+  return rooms;
+}
+
+// Validate plan: reject if any room fails furniture/proportion check
+function validatePlan(rooms) {
+  let failures = 0;
+  rooms.forEach(r => {
+    if (!validateFurniture(r)) {
+      dlog(`Furniture fail: ${r.name} ${r.w.toFixed(1)}x${r.h.toFixed(1)}`, 'warn');
+      failures++;
+    }
+    if (!validateProportion(r.w, r.h)) {
+      dlog(`Proportion fail: ${r.name} ratio ${(r.w/r.h).toFixed(2)}`, 'warn');
+      failures++;
+    }
+  });
+  return failures;
+}
+
+// ── MASTER LAYOUT FUNCTION ──
+function runLayout(floorRooms, plotW, plotH, facing, floorIdx, totalFloors, adjData) {
+  dlog(`Layout floor ${floorIdx}: ${floorRooms.length} rooms`, 'info');
+
+  // Merge AI adjacency
+  let rooms = floorRooms.map(r => {
+    const ai = adjData?.rooms?.find(a => a.name.toLowerCase()===r.name.toLowerCase());
+    return {
+      ...r,
+      zone:      ai?.zone      || VASTU.zone(r.name),
+      direction: ai?.direction || VASTU.direction[r.name] || 'N',
+      priority:  ai?.priority  || VASTU.priority(r.name),
+      vastuOk:   ai?.vastuOk   ?? true,
+    };
+  });
+
+  // Pre-fix shaft + stair positions
+  const shaft = APP.shaftPos;
+  const stair = APP.stairPos;
+  rooms = rooms.map(r => {
+    if (r.name==='Plumbing Shaft' && shaft) return { ...r, x:shaft.x, y:shaft.y, w:shaft.w, h:shaft.h, _fixed:true };
+    if ((r.name==='Staircase'||r.name==='Lift / Staircase') && stair) return { ...r, x:stair.x, y:stair.y, w:stair.w, h:stair.h, _fixed:true };
+    return r;
+  });
+
+  // Assign sizes
+  const unfixed = rooms.filter(r=>!r._fixed);
+  const sized   = assignSizes(unfixed, plotW, plotH);
+  const fixed   = rooms.filter(r=>r._fixed);
+  rooms = [...sized, ...fixed];
+
+  // BSP + bias
+  const moveable = rooms.filter(r=>!r._fixed);
+  let placed = placeWithBias(moveable, plotW, plotH, facing);
+  // Re-add fixed rooms
+  fixed.forEach(fr => placed.push({ ...fr }));
+
+  // Entry spaces
+  placed = placeEntrySpaces(placed, plotW, plotH, facing);
+
+  // Attach bathrooms
+  placed = attachBathrooms(placed, plotW, plotH);
+
+  // Shaft alignment
+  if (shaft) placed = alignRoomsToShaft(placed, shaft, plotW, plotH);
+
+  // Circulation fix
+  placed = fixCirculation(placed, plotW, plotH, facing);
+
+  // Wall snapping
+  placed = snapWalls(placed);
+
+  // Overlap resolution
+  placed = resolveOverlaps(placed, plotW, plotH);
+
+  // Final clamp
+  placed.forEach(r => {
+    r.x = Math.max(0, Math.min(r.x, plotW-Math.max(r.w,3)));
+    r.y = Math.max(0, Math.min(r.y, plotH-Math.max(r.h,3)));
+    r.w = Math.max(3, Math.min(r.w, plotW));
+    r.h = Math.max(3, Math.min(r.h, plotH));
+  });
+
+  const failures = validatePlan(placed);
+  dlog(`Floor ${floorIdx}: ${placed.length} rooms, ${failures} validation issues`, failures?'warn':'ok');
+  return placed;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §17  MAIN ORCHESTRATOR
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function generatePlan() {
+  hideError();
+  const apiKey      = document.getElementById('apiKey').value.trim();
+  const plotW       = parseFloat(document.getElementById('plotW').value) || 40;
+  const plotH       = parseFloat(document.getElementById('plotH').value) || 60;
+  const floorsVal   = document.getElementById('floors').value;
+  const facing      = document.getElementById('facing').value;
+  const vastuLevel  = document.getElementById('vastuLevel').value;
+  const bedCount    = parseInt(document.getElementById('bedroomCount').value) || 3;
+  const drawingScale= parseInt(document.getElementById('drawingScale').value) || 50;
+  const adults      = parseInt(document.getElementById('adults').value) || 4;
+  const children    = parseInt(document.getElementById('children').value) || 2;
+  const elderlyReq  = document.getElementById('req_elderly')?.checked || false;
+  const familySize  = adults + children;
+
+  if (!apiKey)       { showError('⚠ Please enter your Groq API key.'); return; }
+  if (plotW<10||plotH<10) { showError('⚠ Plot size must be at least 10×10 ft.'); return; }
+
+  APP.plotW=plotW; APP.plotH=plotH; APP.facing=facing;
+  APP.drawingScale=drawingScale; APP.familySize=familySize; APP.bedCount=bedCount;
+  APP.legendUsed = new Set();
+
+  const selSpaces = [...document.querySelectorAll('#roomChecks input:checked')].map(c=>c.value);
+  const bedsArr   = [{ name:'Master Bedroom' }];
+  for (let i=2;i<=bedCount;i++) bedsArr.push({ name:`Bedroom ${i}` });
+  const spaceRooms = selSpaces.map(s=>({ name:s }));
+  const shaftRoom  = [{ name:'Plumbing Shaft' }];
+  const allRooms   = [...bedsArr, ...spaceRooms, ...shaftRoom];
+
+  // Pre-compute fixed positions
+  APP.shaftPos = computeShaftPosition(plotW, plotH, facing);
+  APP.stairPos = allRooms.some(r=>r.name==='Staircase'||r.name==='Lift / Staircase')
+                 ? computeStairPosition(plotW, plotH, facing) : null;
+
+  dlog(`Init: ${plotW}×${plotH} ft, ${floorsVal}, ${facing}, ${bedCount}BR, ${allRooms.length} rooms`, 'info');
+  setLoading(true, 'Step 1/3 · AI building adjacency graph…');
+  document.getElementById('emptyState').style.display='none';
+
+  // ── SINGLE AI CALL ──
+  let adjData = null;
+  try {
+    const prompt = buildPrompt({ rooms:allRooms, plotW, plotH, facing, vastuLevel, bedCount, familySize });
+    const raw    = await callGroq(apiKey, prompt);
+    adjData = safeParseJSON(raw);
+    if (!adjData) dlog('Parse failed → fallback','warn');
+    else {
+      APP.adjacencyCache = adjData;
+      APP.vastuScore = adjData.vastuScore || 75;
+      dlog(`Adjacency: ${adjData.rooms?.length} rooms, score ${adjData.vastuScore}`,'ok');
+    }
+  } catch(e) {
+    dlog(`AI error: ${e.message}`,'err');
+    setLoading(false);
+    showError(`API Error: ${e.message}`);
+    return;
+  }
+  if (!adjData) adjData = vastuFallback(allRooms.map(r=>r.name), facing, bedCount);
+
+  setLoading(true, 'Step 2/3 · Distributing rooms across floors…');
+  const baseRooms = allRooms.map(r=>({
+    ...r, zone:VASTU.zone(r.name), priority:VASTU.priority(r.name),
+    direction:VASTU.direction[r.name]||'N', vastuOk:true,
+  }));
+  const floorDefs = distributeFloors(baseRooms, floorsVal, bedCount, plotW, elderlyReq);
+  dlog(`Floors: ${floorDefs.map(f=>`${f.name}(${f.rooms.length})`).join(', ')}`,'info');
+
+  setLoading(true, 'Step 3/3 · Running BSP constraint solver…');
+  APP.floors = floorDefs.map((fd,fi) => ({
+    name: fd.name,
+    rooms: runLayout(fd.rooms, plotW, plotH, facing, fi, floorDefs.length, adjData),
+  }));
+  APP.currentFloor = 0;
+
+  setLoading(false);
+  document.getElementById('resultsDiv').classList.add('active');
+  buildFloorSwitcher();
+  renderFloor(0);
+  buildRoomTable();
+  buildVastuReport(adjData);
+  buildSummary(plotW, plotH, floorsVal, bedCount, familySize);
+  buildLegend();
+  updateScaleBar(drawingScale);
+  dlog('Plan generation complete ✓','ok');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §18  COLOUR PALETTE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const PALETTE = {
+  'Living Room':        { f:'#EEF2E8', b:'#9FB880' },
+  'Drawing Room':       { f:'#EEF2E8', b:'#9FB880' },
+  'Dining Room':        { f:'#FFF4E8', b:'#D4A060' },
+  'Kitchen':            { f:'#FFF0E0', b:'#D08840' },
+  'Master Bedroom':     { f:'#EAE8F2', b:'#8878B8' },
+  'Bedroom 2':          { f:'#EEEcF8', b:'#9890C8' },
+  'Bedroom 3':          { f:'#F0EEF8', b:'#A09AC8' },
+  'Bedroom 4':          { f:'#F2F0F8', b:'#A8A4C8' },
+  'Bedroom 5':          { f:'#F4F2F8', b:'#B0ACC8' },
+  'Master Bathroom':    { f:'#E4F0F8', b:'#5888B8' },
+  'Attached Bathroom':  { f:'#E8F2F8', b:'#6898C0' },
+  'Bathroom 2':         { f:'#EAF4F8', b:'#78A8C8' },
+  'Bathroom 3':         { f:'#EAF4F8', b:'#78A8C8' },
+  'Common Bathroom':    { f:'#D8EEF8', b:'#4880B0' },
+  'Toilet':             { f:'#DCF0FA', b:'#5090C0' },
+  'Powder Room':        { f:'#E0F2FA', b:'#6098C0' },
+  'Puja Room':          { f:'#FFF8DC', b:'#C8A830' },
+  'Study Room':         { f:'#EEF8EE', b:'#70B870' },
+  'Store Room':         { f:'#F0F0EC', b:'#A0A098' },
+  'Utility Room':       { f:'#EEEEEA', b:'#9898A0' },
+  'Garage':             { f:'#E8E8E4', b:'#8888A0' },
+  'Servant Quarter':    { f:'#F0EDE8', b:'#B0A898' },
+  'Staircase':          { f:'#ECEEE8', b:'#9098A0' },
+  'Lift / Staircase':   { f:'#ECEEE8', b:'#9098A0' },
+  'Corridor':           { f:'#F4F4F0', b:'#B8B8B0' },
+  'Verandah':           { f:'#F0F8E0', b:'#80B030' },
+  'Porch':              { f:'#EEF8E0', b:'#88B030' },
+  'Balcony':            { f:'#E8F8E0', b:'#78B040' },
+  'Garden / Courtyard': { f:'#E0F5E0', b:'#50A050' },
+  'Terrace Garden':     { f:'#E0F5E0', b:'#50A050' },
+  'Plumbing Shaft':     { f:'#E0E8F0', b:'#6878A0' },
+  default:              { f:'#F2F2EE', b:'#B0B0A8' },
+};
+function pal(name) { return PALETTE[name] || PALETTE.default; }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §19  RENDERING ENGINE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function ftIn(v) {
+  const ft=Math.floor(v), in_=Math.round((v-ft)*12);
+  return in_>0 ? `${ft}'-${in_}"` : `${ft}'-0"`;
+}
+
+function compassOf(r, plotW, plotH) {
+  const cx=r.x+r.w/2, cy=r.y+r.h/2;
+  const nx=cx/plotW, ny=cy/plotH;
+  if (ny<0.34) { if(nx<0.34) return 'NW'; if(nx>0.66) return 'NE'; return 'N'; }
+  if (ny>0.66) { if(nx<0.34) return 'SW'; if(nx>0.66) return 'SE'; return 'S'; }
+  if (nx<0.34) return 'W'; if(nx>0.66) return 'E'; return 'C';
+}
+
+function isExternal(r, plotW, plotH, side) {
+  const tol = 1.0;
+  if (side==='N') return r.y <= tol;
+  if (side==='S') return (r.y+r.h) >= plotH - tol;
+  if (side==='W') return r.x <= tol;
+  if (side==='E') return (r.x+r.w) >= plotW - tol;
+  return false;
+}
+
+function renderFloor(fi) {
+  APP.currentFloor = fi;
+  const floor = APP.floors[fi];
+  if (!floor) return;
+  const pxPerFt = Math.min(14, 650 / Math.max(APP.plotW, APP.plotH));
+  const P = 80;
+  const canvas = document.getElementById('planCanvas');
+  canvas.width  = Math.round(APP.plotW*pxPerFt) + P*2 + 80;
+  canvas.height = Math.round(APP.plotH*pxPerFt) + P*2 + 90;
+  const ctx = canvas.getContext('2d');
+  drawPlan(ctx, floor, pxPerFt, P);
+  document.querySelectorAll('.floor-btn').forEach((b,i)=>b.classList.toggle('active',i===fi));
+}
+
+function drawPlan(ctx, floor, sc, P) {
+  const pw = APP.plotW*sc, ph = APP.plotH*sc;
+  const OW = STD.wall.outer*sc, IW = STD.wall.inner*sc;
+
+  // White paper
+  ctx.fillStyle='#FAFAFA'; ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
+
+  // Dot grid
+  ctx.fillStyle='rgba(100,120,170,0.12)';
+  const gs = Math.max(6, Math.round(5*sc));
+  for(let x=P;x<=P+pw+1;x+=gs) for(let y=P;y<=P+ph+1;y+=gs) {
+    ctx.beginPath(); ctx.arc(x,y,0.6,0,Math.PI*2); ctx.fill();
+  }
+
+  // ── ROOM FILLS ──
+  floor.rooms.forEach(r => {
+    const p=pal(r.name);
+    ctx.fillStyle=p.f;
+    ctx.fillRect(P+r.x*sc, P+r.y*sc, r.w*sc, r.h*sc);
+  });
+
+  // ── OUTER WALLS ──
+  ctx.fillStyle='#1a1a2e';
+  ctx.fillRect(P,      P,      pw,  OW);
+  ctx.fillRect(P,      P+ph-OW,pw,  OW);
+  ctx.fillRect(P,      P,      OW,  ph);
+  ctx.fillRect(P+pw-OW,P,      OW,  ph);
+
+  // ── INTERNAL PARTITION WALLS ──
+  ctx.fillStyle='#1e2235';
+  for(let i=0;i<floor.rooms.length;i++) {
+    for(let j=i+1;j<floor.rooms.length;j++) {
+      const a=floor.rooms[i], b=floor.rooms[j];
+      const ax1=P+a.x*sc, ax2=ax1+a.w*sc, ay1=P+a.y*sc, ay2=ay1+a.h*sc;
+      const bx1=P+b.x*sc, bx2=bx1+b.w*sc, by1=P+b.y*sc, by2=by1+b.h*sc;
+      const yOv = ay1<by2-2 && ay2>by1+2;
+      const xOv = ax1<bx2-2 && ax2>bx1+2;
+      if (yOv && Math.abs(ax2-bx1) < sc*0.8) {
+        const wx = (ax2+bx1)/2 - IW/2;
+        ctx.fillRect(wx, Math.max(ay1,by1), IW, Math.min(ay2,by2)-Math.max(ay1,by1));
+      }
+      if (xOv && Math.abs(ay2-by1) < sc*0.8) {
+        const wy = (ay2+by1)/2 - IW/2;
+        ctx.fillRect(Math.max(ax1,bx1), wy, Math.min(ax2,bx2)-Math.max(ax1,bx1), IW);
+      }
+    }
+  }
+
+  // ── ROOM BORDERS ──
+  floor.rooms.forEach(r => {
+    const p=pal(r.name);
+    ctx.strokeStyle=p.b; ctx.lineWidth=0.8; ctx.setLineDash([]);
+    ctx.strokeRect(P+r.x*sc+0.5, P+r.y*sc+0.5, r.w*sc-1, r.h*sc-1);
+  });
+
+  // ── SPECIAL ROOM FILLS ──
+  floor.rooms.forEach(r => {
+    const rx=P+r.x*sc, ry=P+r.y*sc, rw=r.w*sc, rh=r.h*sc;
+    const n=r.name.toLowerCase();
+    if (n.includes('verandah')||n.includes('porch')||n.includes('balcony')||
+        n.includes('garden')||n.includes('terrace')) drawOpenHatch(ctx,rx,ry,rw,rh);
+    if (n==='plumbing shaft') drawShaftHatch(ctx,rx,ry,rw,rh);
+    APP.legendUsed.add(r.name);
+  });
+
+  // ── OPENINGS (gate, doors, windows) ──
+  drawAllOpenings(ctx, floor.rooms, APP.plotW, APP.plotH, sc, P, OW, APP.facing);
+
+  // ── FIXTURES ──
+  floor.rooms.forEach(r => drawFixtures(ctx, r, P, sc));
+
+  // ── STAIR SYMBOL ──
+  floor.rooms.forEach(r => {
+    const n=r.name.toLowerCase();
+    if(n.includes('stair')) drawStairSymbol(ctx,r,P,sc);
+  });
+
+  // ── ROOM LABELS ──
+  floor.rooms.forEach(r => drawLabel(ctx,r,P,sc));
+
+  // ── DIMENSION LINES ──
+  drawDimLine(ctx, P, P-34, P+pw, P-34, ftIn(APP.plotW), 'H');
+  drawDimLine(ctx, P-36, P, P-36, P+ph, ftIn(APP.plotH), 'V');
+
+  // ── NORTH ARROW ──
+  drawNorthArrow(ctx, P+pw+42, P+38, 20);
+
+  // ── ROAD LABEL ──
+  drawRoadLabel(ctx, APP.facing, P, pw, ph);
+
+  // ── TITLE ──
+  ctx.fillStyle='#1a1a2e'; ctx.font='bold 11px Arial,sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  ctx.fillText(`${floor.name.toUpperCase()} — FLOOR PLAN`, P+pw/2, P+ph+46);
+  ctx.fillStyle='#556'; ctx.font='9px Arial,sans-serif';
+  ctx.fillText(`Scale 1:${APP.drawingScale}  ·  Plot: ${ftIn(APP.plotW)} × ${ftIn(APP.plotH)}  ·  ${APP.facing} Facing  ·  All dimensions in feet-inches`, P+pw/2, P+ph+60);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §20  OPENINGS ENGINE  (gate, doors, windows, ventilators)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function drawAllOpenings(ctx, rooms, plotW, plotH, sc, P, OW, facing) {
+  // Main gate
+  const f=facing.toLowerCase();
+  const pw=plotW*sc, ph=plotH*sc;
+  const gw=Math.max(14,sc*3.5);
+
+  function drawGate(gx,gy,gw,gh,isH) {
+    ctx.fillStyle='#FAFAFA'; ctx.fillRect(gx,gy,gw,gh);
+    ctx.fillStyle='#1a1a2e';
+    if(isH){ctx.fillRect(gx-3,gy,5,gh);ctx.fillRect(gx+gw-2,gy,5,gh);}
+    else   {ctx.fillRect(gx,gy-3,gw,5);ctx.fillRect(gx,gy+gh-2,gw,5);}
+    ctx.fillStyle='#c9a84c';ctx.font='bold 7px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+    if(isH) ctx.fillText('MAIN GATE', gx+gw/2, gy+(f.includes('north')?-14:gh+14));
+    else    ctx.fillText('MAIN GATE', gx+(f.includes('west')?-24:gw+24), gy+gh/2);
+    APP.legendUsed.add('_gate');
+  }
+
+  if (f.includes('north'))     drawGate(P+pw*0.44,  P,          gw, OW,  true);
+  else if (f.includes('south'))drawGate(P+pw*0.44,  P+ph-OW,    gw, OW,  true);
+  else if (f.includes('east')) drawGate(P+pw-OW,    P+ph*0.44,  OW, gw,  false);
+  else                          drawGate(P,           P+ph*0.44,  OW, gw,  false);
+
+  // Doors + windows per room
+  rooms.forEach(r => {
+    const rx=P+r.x*sc, ry=P+r.y*sc, rw=r.w*sc, rh=r.h*sc;
+    if(rw<8||rh<8) return;
+    const n=r.name.toLowerCase();
+    const isBath  = n.includes('bath')||n.includes('toilet')||n.includes('powder');
+    const isOpen  = n.includes('verandah')||n.includes('porch')||n.includes('balcony')||
+                    n.includes('garden')||n.includes('terrace');
+    const isStair = n.includes('stair');
+    const isShaft = n.includes('shaft');
+    const isGarage= n.includes('garage');
+    if (isOpen||isShaft||isStair) return;
+
+    // Door: on bottom or right edge
+    const dw = isBath ? 2.4*sc : Math.min(3.2*sc, rw*0.38);
+    if (!isGarage) {
+      const dSide = rw>=rh ? 'S' : 'E';
+      if(dSide==='S') drawDoor(ctx, rx+rw*0.25, ry+rh, dw, 'S');
+      else            drawDoor(ctx, rx+rw,       ry+rh*0.25, dw, 'E');
+      APP.legendUsed.add('_door');
+    } else {
+      // Garage: large opening
+      ctx.fillStyle='#FAFAFA'; ctx.fillRect(rx+rw*0.1, ry-OW*0.5, rw*0.8, OW*1.5);
+      ctx.strokeStyle='#555'; ctx.lineWidth=1.2; ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.moveTo(rx+rw*0.1,ry); ctx.lineTo(rx+rw*0.9,ry); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Windows on external walls only
+    const ww = isBath ? 1.6*sc : 3.2*sc;
+    const exN = isExternal(r, plotW, plotH, 'N');
+    const exS = isExternal(r, plotW, plotH, 'S');
+    const exW = isExternal(r, plotW, plotH, 'W');
+    const exE = isExternal(r, plotW, plotH, 'E');
+
+    if (exN) { drawWindow(ctx, rx+rw*0.55, ry,     ww,'H',OW); APP.legendUsed.add('_window'); }
+    if (exS) { drawWindow(ctx, rx+rw*0.55, ry+rh,  ww,'H',OW); APP.legendUsed.add('_window'); }
+    if (exW) { drawWindow(ctx, rx,         ry+rh*0.55, ww,'V',OW); APP.legendUsed.add('_window'); }
+    if (exE) { drawWindow(ctx, rx+rw,      ry+rh*0.55, ww,'V',OW); APP.legendUsed.add('_window'); }
+
+    // Ventilator for bathrooms on external walls (small high vent)
+    if (isBath && (exN||exS||exW||exE)) {
+      const vx = exN||exS ? rx+rw*0.8 : exW ? rx : rx+rw;
+      const vy = exN||exS ? (exN?ry:ry+rh) : ry+rh*0.15;
+      drawVentilator(ctx, vx, vy, 1.0*sc, exN||exS?'H':'V', OW);
+      APP.legendUsed.add('_vent');
+    }
+  });
+}
+
+function drawDoor(ctx, x, y, dw, side) {
+  ctx.save(); ctx.setLineDash([]);
+  ctx.fillStyle='#FAFAFA';
+  if(side==='S'||side==='N') ctx.fillRect(x,y-4,dw,8);
+  else ctx.fillRect(x-4,y,8,dw);
+  ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=1.5;
+  ctx.beginPath();
+  if(side==='S'||side==='N'){ctx.moveTo(x,y);ctx.lineTo(x+dw,y);}
+  else{ctx.moveTo(x,y);ctx.lineTo(x,y+dw);}
+  ctx.stroke();
+  ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=0.9; ctx.setLineDash([3,3]);
+  ctx.beginPath();
+  if(side==='S')      ctx.arc(x,y,dw,0,Math.PI/2);
+  else if(side==='N') ctx.arc(x+dw,y,dw,Math.PI/2,Math.PI);
+  else if(side==='E') ctx.arc(x,y,dw,Math.PI/2,Math.PI);
+  else                ctx.arc(x,y+dw,dw,-Math.PI/2,0);
+  ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+}
+
+function drawWindow(ctx, x, y, ww, dir, OW) {
+  ctx.save();
+  ctx.fillStyle='#FAFAFA';
+  if(dir==='H') ctx.fillRect(x-ww/2, y-OW/2, ww, OW);
+  else          ctx.fillRect(x-OW/2, y-ww/2, OW, ww);
+  const off=OW*0.26;
+  ctx.strokeStyle='#2255aa'; ctx.lineWidth=1.1; ctx.setLineDash([]);
+  [-off,0,off].forEach(o=>{
+    ctx.beginPath();
+    if(dir==='H'){ctx.moveTo(x-ww/2,y+o);ctx.lineTo(x+ww/2,y+o);}
+    else{ctx.moveTo(x+o,y-ww/2);ctx.lineTo(x+o,y+ww/2);}
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function drawVentilator(ctx, x, y, vw, dir, OW) {
+  ctx.save();
+  ctx.fillStyle='#c8ddf0';
+  if(dir==='H') ctx.fillRect(x-vw/2, y-OW/2, vw, OW);
+  else          ctx.fillRect(x-OW/2, y-vw/2, OW, vw);
+  ctx.strokeStyle='#4488aa'; ctx.lineWidth=0.7; ctx.setLineDash([2,2]);
+  if(dir==='H'){ctx.beginPath();ctx.moveTo(x-vw/2,y);ctx.lineTo(x+vw/2,y);ctx.stroke();}
+  else{ctx.beginPath();ctx.moveTo(x,y-vw/2);ctx.lineTo(x,y+vw/2);ctx.stroke();}
+  ctx.setLineDash([]); ctx.restore();
+}
+
+function drawOpenHatch(ctx, rx, ry, rw, rh) {
+  ctx.save(); ctx.strokeStyle='rgba(60,100,40,0.22)'; ctx.lineWidth=0.9; ctx.setLineDash([5,5]);
+  for(let d=0;d<rw+rh;d+=12){
+    ctx.beginPath(); ctx.moveTo(rx+Math.max(0,d-rh),ry+Math.max(0,rh-d)); ctx.lineTo(rx+Math.min(rw,d),ry+Math.max(0,d-rw)); ctx.stroke();
+  }
+  ctx.setLineDash([]); ctx.restore();
+}
+
+function drawShaftHatch(ctx, rx, ry, rw, rh) {
+  ctx.save(); ctx.strokeStyle='rgba(60,80,140,0.4)'; ctx.lineWidth=1; ctx.setLineDash([]);
+  const sp=6;
+  for(let x=rx;x<rx+rw;x+=sp){ctx.beginPath();ctx.moveTo(x,ry);ctx.lineTo(x,ry+rh);ctx.stroke();}
+  for(let y=ry;y<ry+rh;y+=sp){ctx.beginPath();ctx.moveTo(rx,y);ctx.lineTo(rx+rw,y);ctx.stroke();}
+  ctx.strokeStyle='rgba(80,80,160,0.6)'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(rx,ry); ctx.lineTo(rx+rw,ry+rh); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(rx+rw,ry); ctx.lineTo(rx,ry+rh); ctx.stroke();
+  ctx.fillStyle='rgba(60,80,140,0.7)'; ctx.font=`bold ${Math.max(5,rw*0.3)}px Arial`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('PS', rx+rw/2, ry+rh/2);
+  ctx.restore();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §21  FIXTURE DRAWING ENGINE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function drawFixtures(ctx, r, P, sc) {
+  const rx=P+r.x*sc, ry=P+r.y*sc, rw=r.w*sc, rh=r.h*sc;
+  if(rw<14||rh<14) return;
+  const n=r.name.toLowerCase();
+  if(n.includes('master bedroom'))        drawBedroom(ctx,rx,ry,rw,rh,true);
+  else if(n.includes('bedroom'))          drawBedroom(ctx,rx,ry,rw,rh,false);
+  else if(n.includes('living')||n.includes('drawing')) drawLiving(ctx,rx,ry,rw,rh);
+  else if(n.includes('dining'))           drawDining(ctx,rx,ry,rw,rh,APP.familySize);
+  else if(n.includes('kitchen'))          drawKitchen(ctx,rx,ry,rw,rh);
+  else if(n.includes('master bath'))      drawBathroom(ctx,rx,ry,rw,rh,'full');
+  else if(n.includes('bath'))             drawBathroom(ctx,rx,ry,rw,rh,'standard');
+  else if(n.includes('toilet')||n.includes('powder')) drawBathroom(ctx,rx,ry,rw,rh,'half');
+  else if(n.includes('study'))            drawStudy(ctx,rx,ry,rw,rh);
+  else if(n.includes('puja')||n.includes('mandir')) drawPuja(ctx,rx,ry,rw,rh);
+  else if(n.includes('garage'))           drawGarage(ctx,rx,ry,rw,rh);
+  else if(n.includes('store')||n.includes('utility')) drawStore(ctx,rx,ry,rw,rh);
+}
+
+// BED + WARDROBE
+function drawBedroom(ctx, rx, ry, rw, rh, isMaster) {
+  ctx.save();
+  const bw = Math.min(rw*0.58, isMaster?85:72);
+  const bh = Math.min(rh*0.58, isMaster?95:80);
+  const bx = rx+(rw-bw)/2, by = ry+(rh-bh)*0.55;
+  // Wardrobe along top wall
+  const wdW = Math.min(rw*0.45, 55), wdH = Math.min(rh*0.14, 16);
+  ctx.fillStyle='#d8d4cc'; ctx.strokeStyle='#888'; ctx.lineWidth=0.8;
+  ctx.fillRect(rx+2, ry+2, wdW, wdH); ctx.strokeRect(rx+2, ry+2, wdW, wdH);
+  // Wardrobe door lines
+  const nDoors=Math.max(2,Math.round(wdW/14));
+  ctx.strokeStyle='#aaa'; ctx.lineWidth=0.5;
+  for(let i=1;i<nDoors;i++){
+    const dx=rx+2+wdW*i/nDoors;
+    ctx.beginPath(); ctx.moveTo(dx,ry+2); ctx.lineTo(dx,ry+2+wdH); ctx.stroke();
+  }
+  APP.legendUsed.add('_wardrobe');
+  // Bed frame
+  ctx.fillStyle='#fff'; ctx.strokeStyle='#999'; ctx.lineWidth=1.1;
+  ctx.fillRect(bx,by,bw,bh); ctx.strokeRect(bx,by,bw,bh);
+  // Headboard
+  ctx.fillStyle='#e0dbd0'; ctx.fillRect(bx,by,bw,bh*0.12); ctx.strokeRect(bx,by,bw,bh*0.12);
+  // Pillows
+  ctx.fillStyle='#f0ede8'; ctx.strokeStyle='#bbb'; ctx.lineWidth=0.7;
+  if(isMaster){
+    const pw_=(bw/2-10), ph_=bh*0.17;
+    ctx.fillRect(bx+4,  by+bh*0.13+2, pw_, ph_); ctx.strokeRect(bx+4, by+bh*0.13+2, pw_, ph_);
+    ctx.fillRect(bx+bw/2+2, by+bh*0.13+2, pw_, ph_); ctx.strokeRect(bx+bw/2+2, by+bh*0.13+2, pw_, ph_);
+  } else {
+    ctx.fillRect(bx+4, by+bh*0.13+2, bw-8, bh*0.17); ctx.strokeRect(bx+4, by+bh*0.13+2, bw-8, bh*0.17);
+  }
+  // Mattress texture
+  ctx.strokeStyle='rgba(140,140,130,0.25)'; ctx.lineWidth=0.5;
+  ctx.beginPath(); ctx.moveTo(bx,by+bh*0.33); ctx.lineTo(bx+bw,by+bh); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bx+bw,by+bh*0.33); ctx.lineTo(bx,by+bh); ctx.stroke();
+  APP.legendUsed.add('_bed');
+  ctx.restore();
+}
+
+// SOFA + TV WALL
+function drawLiving(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  // TV wall at top
+  ctx.fillStyle='#d8d4c8'; ctx.strokeStyle='#888'; ctx.lineWidth=0.9;
+  const tvW=Math.min(rw*0.45,60), tvH=Math.min(rh*0.08,9);
+  ctx.fillRect(rx+(rw-tvW)/2, ry+4, tvW, tvH); ctx.strokeRect(rx+(rw-tvW)/2, ry+4, tvW, tvH);
+  ctx.fillStyle='#1a1a2e'; ctx.fillRect(rx+(rw-tvW)/2+2, ry+5, tvW-4, tvH-2);
+  APP.legendUsed.add('_tv');
+  // Sofa
+  const sw=Math.min(rw*0.70,100), sh=Math.min(rh*0.28,34);
+  const sx=rx+(rw-sw)/2, sy=ry+rh*0.6;
+  ctx.fillStyle='#e4e0d4'; ctx.strokeStyle='#999'; ctx.lineWidth=0.9;
+  ctx.fillRect(sx,sy,sw,sh); ctx.strokeRect(sx,sy,sw,sh);
+  // Sofa back
+  ctx.fillStyle='#dad6ca'; ctx.fillRect(sx,sy,sw,sh*0.3); ctx.strokeRect(sx,sy,sw,sh*0.3);
+  // Cushion dividers
+  const nC=Math.max(2,Math.round(sw/30));
+  ctx.strokeStyle='#aaa8a0'; ctx.lineWidth=0.6;
+  for(let i=1;i<nC;i++){ctx.beginPath();ctx.moveTo(sx+sw*i/nC,sy);ctx.lineTo(sx+sw*i/nC,sy+sh);ctx.stroke();}
+  // Armrests
+  ctx.fillStyle='#d4d0c4';
+  ctx.fillRect(sx-6,sy,6,sh); ctx.strokeRect(sx-6,sy,6,sh);
+  ctx.fillRect(sx+sw,sy,6,sh); ctx.strokeRect(sx+sw,sy,6,sh);
+  APP.legendUsed.add('_sofa');
+  // Coffee table
+  const cw=sw*0.38, ch=sh*0.65;
+  ctx.fillStyle='#f0ede8'; ctx.strokeStyle='#aaa'; ctx.lineWidth=0.7;
+  ctx.fillRect(sx+(sw-cw)/2, sy-ch-4, cw, ch); ctx.strokeRect(sx+(sw-cw)/2, sy-ch-4, cw, ch);
+  ctx.restore();
+}
+
+// DINING TABLE scaled by family
+function drawDining(ctx, rx, ry, rw, rh, familySize) {
+  ctx.save();
+  const spec = STD.diningTable(familySize);
+  const tw = Math.min(spec.tw*18, rw*0.55);
+  const th = Math.min(spec.th*12, rh*0.62);
+  const tx = rx+(rw-tw)/2, ty = ry+(rh-th)/2;
+  // Table
+  ctx.fillStyle='#f8f4ec'; ctx.strokeStyle='#a09060'; ctx.lineWidth=1;
+  ctx.fillRect(tx,ty,tw,th); ctx.strokeRect(tx,ty,tw,th);
+  // Centre grain
+  ctx.strokeStyle='rgba(160,140,80,0.2)'; ctx.lineWidth=0.5;
+  ctx.beginPath(); ctx.moveTo(tx+tw*0.1,ty+th/2); ctx.lineTo(tx+tw*0.9,ty+th/2); ctx.stroke();
+  // Chairs
+  const cs=11, cg=4;
+  ctx.fillStyle='#e0dbd0'; ctx.strokeStyle='#888'; ctx.lineWidth=0.7;
+  const nSide = spec.seats <= 4 ? 2 : spec.seats <= 6 ? 3 : 4;
+  for(let i=0;i<nSide;i++){
+    const cx_=tx+tw*(i+0.5)/nSide-cs/2;
+    ctx.fillRect(cx_,ty-cs-cg,cs,cs); ctx.strokeRect(cx_,ty-cs-cg,cs,cs);
+    ctx.fillRect(cx_,ty+th+cg,cs,cs); ctx.strokeRect(cx_,ty+th+cg,cs,cs);
+  }
+  for(let i=0;i<2;i++){
+    const cy_=ty+th*(i+0.5)/2-cs/2;
+    ctx.fillRect(tx-cs-cg,cy_,cs,cs); ctx.strokeRect(tx-cs-cg,cy_,cs,cs);
+    ctx.fillRect(tx+tw+cg, cy_,cs,cs); ctx.strokeRect(tx+tw+cg,cy_,cs,cs);
+  }
+  APP.legendUsed.add('_dining');
+  ctx.restore();
+}
+
+// KITCHEN WORK TRIANGLE
+function drawKitchen(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  const tri = computeKitchenTriangle(rx, ry, rw, rh);
+  // L-shaped counter
+  ctx.fillStyle='#d4cfc4'; ctx.strokeStyle='#888'; ctx.lineWidth=0.9;
+  ctx.fillRect(tri.platform1.x, tri.platform1.y, tri.platform1.w, tri.platform1.h);
+  ctx.strokeRect(tri.platform1.x, tri.platform1.y, tri.platform1.w, tri.platform1.h);
+  ctx.fillRect(tri.platform2.x, tri.platform2.y, tri.platform2.w, tri.platform2.h);
+  ctx.strokeRect(tri.platform2.x, tri.platform2.y, tri.platform2.w, tri.platform2.h);
+  APP.legendUsed.add('_kPlatform');
+  // Sink
+  ctx.fillStyle='#b8d8ec'; ctx.strokeStyle='#5888a8'; ctx.lineWidth=0.9;
+  ctx.fillRect(tri.sink.x, tri.sink.y, tri.sink.w, tri.sink.h);
+  ctx.strokeRect(tri.sink.x, tri.sink.y, tri.sink.w, tri.sink.h);
+  ctx.beginPath(); ctx.arc(tri.sink.x+tri.sink.w/2, tri.sink.y+tri.sink.h/2, 2, 0, Math.PI*2);
+  ctx.strokeStyle='#446'; ctx.stroke();
+  APP.legendUsed.add('_sink');
+  // Cooktop (4 burners)
+  const pd=tri.platform1.h, hr=Math.min(3.5,pd*0.28);
+  const cx_=tri.cooktop.x, cy_=tri.cooktop.y;
+  [[0,0],[1,0],[0,1],[1,1]].forEach(([bi,bj])=>{
+    ctx.fillStyle='#888'; ctx.strokeStyle='#555'; ctx.lineWidth=0.6;
+    ctx.beginPath(); ctx.arc(cx_+hr*2+(bi*hr*2.6), cy_+hr+(bj*hr*2.4), hr, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+    ctx.strokeStyle='rgba(200,100,0,0.4)';
+    ctx.beginPath(); ctx.arc(cx_+hr*2+(bi*hr*2.6), cy_+hr+(bj*hr*2.4), hr*0.55, 0, Math.PI*2); ctx.stroke();
+  });
+  APP.legendUsed.add('_cooktop');
+  // Fridge
+  ctx.fillStyle='#e8e8e4'; ctx.strokeStyle='#8898a8'; ctx.lineWidth=0.9;
+  ctx.fillRect(tri.fridge.x, tri.fridge.y, tri.fridge.w, tri.fridge.h);
+  ctx.strokeRect(tri.fridge.x, tri.fridge.y, tri.fridge.w, tri.fridge.h);
+  ctx.strokeStyle='#aaa'; ctx.lineWidth=0.5;
+  ctx.beginPath(); ctx.moveTo(tri.fridge.x+tri.fridge.w/2, tri.fridge.y+2);
+  ctx.lineTo(tri.fridge.x+tri.fridge.w/2, tri.fridge.y+tri.fridge.h-2); ctx.stroke();
+  ctx.fillStyle='#666'; ctx.font=`bold ${Math.max(5,tri.fridge.w*0.3)}px Arial`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('F', tri.fridge.x+tri.fridge.w/2, tri.fridge.y+tri.fridge.h/2);
+  APP.legendUsed.add('_fridge');
+  // Work triangle indicator
+  ctx.strokeStyle='rgba(200,120,40,0.25)'; ctx.lineWidth=0.8; ctx.setLineDash([4,4]);
+  const sc1x=tri.sink.x+tri.sink.w/2, sc1y=tri.sink.y+tri.sink.h/2;
+  const cc1x=tri.cooktop.x+6,          cc1y=tri.cooktop.y+4;
+  const fc1x=tri.fridge.x+tri.fridge.w/2, fc1y=tri.fridge.y+tri.fridge.h/2;
+  ctx.beginPath(); ctx.moveTo(sc1x,sc1y); ctx.lineTo(cc1x,cc1y); ctx.lineTo(fc1x,fc1y); ctx.closePath(); ctx.stroke();
+  ctx.setLineDash([]); ctx.restore();
+}
+
+// BATHROOM FIXTURES
+function drawBathroom(ctx, rx, ry, rw, rh, type) {
+  ctx.save();
+  // Tile background
+  ctx.fillStyle='#e6f0f8'; ctx.fillRect(rx+1,ry+1,rw-2,rh-2);
+  ctx.strokeStyle='rgba(80,120,180,0.12)'; ctx.lineWidth=0.4;
+  const ts=Math.max(5,Math.min(10,rw/4));
+  for(let x=rx;x<rx+rw;x+=ts){ctx.beginPath();ctx.moveTo(x,ry);ctx.lineTo(x,ry+rh);ctx.stroke();}
+  for(let y=ry;y<ry+rh;y+=ts){ctx.beginPath();ctx.moveTo(rx,y);ctx.lineTo(rx+rw,y);ctx.stroke();}
+
+  if(type==='half') {
+    // Just toilet + basin
+    drawWashBasin(ctx, rx+(rw-14)/2, ry+3, 14, Math.min(12,rh*0.3));
+    drawToilet(ctx, rx+(rw-16)/2, ry+rh-Math.min(28,rh*0.55)-3, 16, Math.min(28,rh*0.55));
+    APP.legendUsed.add('_basin'); APP.legendUsed.add('_toilet');
+    ctx.restore(); return;
+  }
+
+  const isLandscape = rw > rh;
+  if(isLandscape) {
+    // Basin left, toilet middle, shower right
+    const seg = rw/3;
+    drawWashBasin(ctx, rx+4, ry+(rh-12)/2, Math.min(seg-6,18), 12);
+    drawToilet(ctx, rx+seg+4, ry+(rh-26)/2, Math.min(seg-8,18), Math.min(26,rh*0.7));
+    if(type==='full') drawShower(ctx, rx+seg*2+4, ry+4, Math.min(seg-8,22), rh-8);
+  } else {
+    // Basin top, toilet bottom
+    const bw_=Math.min(rw*0.65,18), bh_=Math.min(rh*0.25,14);
+    drawWashBasin(ctx, rx+(rw-bw_)/2, ry+4, bw_, bh_);
+    const tw_=Math.min(rw*0.65,20), th_=Math.min(rh*0.42,30);
+    drawToilet(ctx, rx+(rw-tw_)/2, ry+rh-th_-4, tw_, th_);
+    if(type==='full' && rh>70) drawShower(ctx, rx+4, ry+bh_+8, rw-8, rh-bh_-th_-20);
+  }
+  APP.legendUsed.add('_basin'); APP.legendUsed.add('_toilet');
+  if(type==='full') APP.legendUsed.add('_shower');
+  ctx.restore();
+}
+
+function drawWashBasin(ctx, x, y, w, h) {
+  ctx.fillStyle='#fff'; ctx.strokeStyle='#5888b0'; ctx.lineWidth=0.9;
+  ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h);
+  ctx.beginPath(); ctx.ellipse(x+w/2, y+h/2, w*0.38, h*0.35, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x+w/2, y+h/2, 1.5, 0, Math.PI*2); ctx.strokeStyle='#336'; ctx.stroke();
+}
+
+function drawToilet(ctx, x, y, w, h) {
+  ctx.fillStyle='#c8ddef'; ctx.strokeStyle='#5888b0'; ctx.lineWidth=0.9;
+  const tankH=h*0.28;
+  ctx.fillRect(x, y, w, tankH); ctx.strokeRect(x, y, w, tankH);
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.ellipse(x+w/2, y+tankH+(h-tankH)*0.52, w*0.42, (h-tankH)*0.44, 0, 0, Math.PI*2);
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(x+w/2, y+tankH+(h-tankH)*0.52, w*0.30, (h-tankH)*0.32, 0, 0, Math.PI*2);
+  ctx.strokeStyle='#88a8c0'; ctx.stroke();
+}
+
+function drawShower(ctx, x, y, w, h) {
+  if(w<8||h<8) return;
+  ctx.strokeStyle='rgba(80,140,200,0.35)'; ctx.lineWidth=0.7; ctx.setLineDash([3,3]);
+  ctx.strokeRect(x,y,w,h); ctx.setLineDash([]);
+  const cx_=x+w/2, cy_=y+h/2, r=Math.min(w,h)*0.28;
+  ctx.strokeStyle='rgba(80,140,200,0.5)'; ctx.lineWidth=0.8;
+  ctx.beginPath(); ctx.arc(cx_,cy_,r,0,Math.PI*2); ctx.stroke();
+  // shower drops
+  [[0,-r*1.4],[r*0.9,-r*1.0],[-r*0.9,-r*1.0]].forEach(([dx,dy])=>{
+    ctx.beginPath(); ctx.arc(cx_+dx, cy_+dy, 1.2, 0, Math.PI*2);
+    ctx.fillStyle='rgba(80,140,220,0.5)'; ctx.fill();
+  });
+}
+
+function drawStudy(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  const dw=Math.min(rw*0.68,80), dh=Math.min(rh*0.24,22);
+  ctx.fillStyle='#e4e0d4'; ctx.strokeStyle='#998'; ctx.lineWidth=0.9;
+  ctx.fillRect(rx+(rw-dw)/2, ry+4, dw, dh); ctx.strokeRect(rx+(rw-dw)/2, ry+4, dw, dh);
+  // Monitor
+  ctx.fillStyle='#1a1a2e'; ctx.fillRect(rx+(rw-18)/2, ry+dh+6, 18, 12); ctx.strokeRect(rx+(rw-18)/2, ry+dh+6, 18, 12);
+  // Chair
+  const cs=14;
+  ctx.fillStyle='#d8d4c8'; ctx.strokeStyle='#998';
+  ctx.fillRect(rx+(rw-cs)/2, ry+dh+22, cs, cs); ctx.strokeRect(rx+(rw-cs)/2, ry+dh+22, cs, cs);
+  // Bookshelf
+  ctx.fillStyle='#c8c0b0'; ctx.fillRect(rx+rw-12, ry+4, 10, rh-8); ctx.strokeRect(rx+rw-12, ry+4, 10, rh-8);
+  for(let i=0;i<5;i++){ ctx.strokeStyle='#998'; ctx.beginPath(); ctx.moveTo(rx+rw-12, ry+4+i*(rh-8)/5); ctx.lineTo(rx+rw-2, ry+4+i*(rh-8)/5); ctx.stroke(); }
+  ctx.restore();
+}
+
+function drawPuja(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  const cx_=rx+rw/2, cy_=ry+rh/2;
+  // Platform
+  ctx.fillStyle='#d4a020'; ctx.strokeStyle='#8a6010'; ctx.lineWidth=0.9;
+  ctx.fillRect(cx_-20, cy_+6, 40, 8); ctx.strokeRect(cx_-20, cy_+6, 40, 8);
+  // Mandap / shrine frame
+  ctx.strokeStyle='#c8901a'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(cx_-16,cy_+6); ctx.lineTo(cx_-16,cy_-18); ctx.lineTo(cx_,cy_-26); ctx.lineTo(cx_+16,cy_-18); ctx.lineTo(cx_+16,cy_+6); ctx.stroke();
+  // Flame
+  ctx.fillStyle='#f8a010';
+  ctx.beginPath(); ctx.moveTo(cx_,cy_-10); ctx.quadraticCurveTo(cx_+5,cy_,cx_,cy_+4); ctx.quadraticCurveTo(cx_-5,cy_,cx_,cy_-10); ctx.fill();
+  ctx.fillStyle='#fff050';
+  ctx.beginPath(); ctx.moveTo(cx_,cy_-8); ctx.quadraticCurveTo(cx_+2,cy_-2,cx_,cy_+1); ctx.quadraticCurveTo(cx_-2,cy_-2,cx_,cy_-8); ctx.fill();
+  // Om symbol
+  ctx.fillStyle='#8a6010'; ctx.font='bold 10px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('ॐ', cx_, cy_-36);
+  ctx.restore();
+}
+
+function drawGarage(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  // Car outline
+  const cw=Math.min(rw*0.78,90), ch=Math.min(rh*0.58,54);
+  const cx_=rx+(rw-cw)/2, cy_=ry+(rh-ch)/2+10;
+  ctx.strokeStyle='#888'; ctx.lineWidth=1; ctx.fillStyle='#e0e0dc';
+  ctx.fillRect(cx_,cy_+ch*0.3,cw,ch*0.7); ctx.strokeRect(cx_,cy_+ch*0.3,cw,ch*0.7);
+  ctx.fillRect(cx_+cw*0.1,cy_,cw*0.8,ch*0.35); ctx.strokeRect(cx_+cw*0.1,cy_,cw*0.8,ch*0.35);
+  // Wheels
+  const wr=8; ctx.fillStyle='#444';
+  [[0.15,1],[0.85,1],[0.15,0],[0.85,0]].forEach(([fx,fy])=>{
+    ctx.beginPath(); ctx.arc(cx_+cw*fx, cy_+ch*(fy*0.7+0.3), wr, 0, Math.PI*2); ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawStore(ctx, rx, ry, rw, rh) {
+  ctx.save();
+  // Boxes
+  const n=Math.min(4, Math.floor(rw/20));
+  for(let i=0;i<n;i++){
+    const bx=rx+4+i*(rw-8)/n, bh_=Math.min(rh*0.4,22);
+    ctx.fillStyle=i%2===0?'#d8d4c8':'#c8c4b8';
+    ctx.strokeStyle='#888'; ctx.lineWidth=0.6;
+    ctx.fillRect(bx,ry+rh-bh_-4,(rw-8)/n-2,bh_);
+    ctx.strokeRect(bx,ry+rh-bh_-4,(rw-8)/n-2,bh_);
+    ctx.beginPath(); ctx.moveTo(bx,ry+rh-bh_/2-4); ctx.lineTo(bx+(rw-8)/n-2,ry+rh-bh_/2-4); ctx.strokeStyle='#aaa'; ctx.stroke();
+  }
+  // Shelf
+  ctx.fillStyle='#b8b0a0'; ctx.fillRect(rx+2,ry+4,rw-4,8); ctx.strokeRect(rx+2,ry+4,rw-4,8);
+  ctx.restore();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §22  STAIRCASE SYMBOL
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function drawStairSymbol(ctx, r, P, sc) {
+  const rx=P+r.x*sc, ry=P+r.y*sc, rw=r.w*sc, rh=r.h*sc;
+  ctx.save();
+  const steps = Math.max(5, Math.round(rh / Math.max(8, rh*0.1)));
+  const sh = rh / steps;
+  for(let i=0;i<steps;i++){
+    ctx.fillStyle=i%2===0?'#deded6':'#e8e8e0';
+    ctx.fillRect(rx,ry+i*sh,rw,sh);
+    ctx.strokeStyle='#808888'; ctx.lineWidth=0.6;
+    ctx.strokeRect(rx,ry+i*sh,rw,sh);
+  }
+  // Arrow
+  ctx.strokeStyle='#334'; ctx.lineWidth=1.2; ctx.setLineDash([]);
+  const ax=rx+rw*0.5, ayBot=ry+rh-4, ayTop=ry+8;
+  ctx.beginPath(); ctx.moveTo(ax,ayBot); ctx.lineTo(ax,ayTop+6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ax-4,ayTop+10); ctx.lineTo(ax,ayTop); ctx.lineTo(ax+4,ayTop+10); ctx.stroke();
+  ctx.fillStyle='#334'; ctx.font='bold 8px Arial'; ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText('UP', rx+3, ry+rh/2);
+  APP.legendUsed.add('_stair');
+  ctx.restore();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §23  ROOM LABELS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function drawLabel(ctx, r, P, sc) {
+  const rx=P+r.x*sc, ry=P+r.y*sc, rw=r.w*sc, rh=r.h*sc;
+  if(rw<14||rh<10) return;
+  const n=r.name.toLowerCase();
+  if(n.includes('stair')) return;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(rx+2,ry+2,rw-4,rh-4); ctx.clip();
+  const fs=Math.max(7, Math.min(11, Math.min(rw/8, rh/3.5)));
+  ctx.fillStyle='#1a1a2e';
+  ctx.font=`bold ${fs}px Arial,sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const cx_=rx+rw/2, cy_=ry+rh/2;
+  ctx.fillText(r.name, cx_, cy_-fs*0.65);
+  ctx.fillStyle='#4a5568'; ctx.font=`${Math.max(6,fs-1)}px Arial,sans-serif`;
+  ctx.fillText(`${ftIn(r.w)}×${ftIn(r.h)}`, cx_, cy_+fs*0.65);
+  ctx.restore();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §24  DIMENSION LINES, NORTH ARROW, ROAD LABEL
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function drawDimLine(ctx, x1, y1, x2, y2, label, dir) {
+  ctx.save(); ctx.strokeStyle='#444'; ctx.fillStyle='#222'; ctx.lineWidth=0.8; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  const tw_=ctx.measureText(label).width+10;
+  if(dir==='H'){
+    ctx.beginPath(); ctx.moveTo(x1,y1-5); ctx.lineTo(x1,y1+5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2,y2-5); ctx.lineTo(x2,y2+5); ctx.stroke();
+    ctx.fillStyle='#FAFAFA'; ctx.fillRect((x1+x2)/2-tw_/2, y1-8, tw_, 16);
+    ctx.fillStyle='#222'; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(label,(x1+x2)/2,y1);
+    [[x1,1],[x2,-1]].forEach(([ax,d])=>{
+      ctx.fillStyle='#444'; ctx.beginPath(); ctx.moveTo(ax,y1); ctx.lineTo(ax+5*d,y1-3); ctx.lineTo(ax+5*d,y1+3); ctx.closePath(); ctx.fill();
+    });
+  } else {
+    ctx.beginPath(); ctx.moveTo(x1-5,y1); ctx.lineTo(x1+5,y1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2-5,y2); ctx.lineTo(x2+5,y2); ctx.stroke();
+    ctx.save(); ctx.translate(x1,(y1+y2)/2); ctx.rotate(-Math.PI/2);
+    ctx.fillStyle='#FAFAFA'; ctx.fillRect(-tw_/2,-8,tw_,16);
+    ctx.fillStyle='#222'; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(label,0,0); ctx.restore();
+    [[y1,1],[y2,-1]].forEach(([ay,d])=>{
+      ctx.fillStyle='#444'; ctx.beginPath(); ctx.moveTo(x1,ay); ctx.lineTo(x1-3,ay+5*d); ctx.lineTo(x1+3,ay+5*d); ctx.closePath(); ctx.fill();
+    });
+  }
+  ctx.restore();
+}
+
+function drawNorthArrow(ctx, cx, cy, r) {
+  ctx.save();
+  ctx.fillStyle='#fff'; ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  // N half filled
+  ctx.fillStyle='#1a1a2e';
+  ctx.beginPath(); ctx.moveTo(cx,cy-r+2); ctx.lineTo(cx-r*0.28,cy+r*0.38); ctx.lineTo(cx,cy); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=0.8;
+  ctx.beginPath(); ctx.moveTo(cx,cy-r+2); ctx.lineTo(cx+r*0.28,cy+r*0.38); ctx.lineTo(cx,cy); ctx.closePath(); ctx.stroke();
+  ctx.fillStyle='#1a1a2e'; ctx.font=`bold ${Math.round(r*0.48)}px Arial`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('N', cx, cy+r*0.68);
+  ctx.restore();
+}
+
+function drawRoadLabel(ctx, facing, P, pw, ph) {
+  const f=facing.toLowerCase();
+  ctx.save(); ctx.fillStyle='#444'; ctx.font='bold 8px Arial,sans-serif';
+  ctx.textAlign='center'; ctx.strokeStyle='#bbb'; ctx.lineWidth=1; ctx.setLineDash([5,4]);
+  if(f.includes('north')){
+    ctx.beginPath(); ctx.moveTo(P,P-42); ctx.lineTo(P+pw,P-42); ctx.stroke();
+    ctx.fillText('— ROAD / STREET —', P+pw/2, P-48);
+  } else if(f.includes('south')){
+    ctx.beginPath(); ctx.moveTo(P,P+ph+42); ctx.lineTo(P+pw,P+ph+42); ctx.stroke();
+    ctx.fillText('— ROAD / STREET —', P+pw/2, P+ph+50);
+  } else if(f.includes('east')){
+    ctx.save(); ctx.translate(P+pw+50,P+ph/2); ctx.rotate(Math.PI/2);
+    ctx.beginPath(); ctx.moveTo(-ph/2,0); ctx.lineTo(ph/2,0); ctx.stroke();
+    ctx.fillText('— ROAD —',0,12); ctx.restore();
+  } else {
+    ctx.save(); ctx.translate(P-50,P+ph/2); ctx.rotate(-Math.PI/2);
+    ctx.beginPath(); ctx.moveTo(-ph/2,0); ctx.lineTo(ph/2,0); ctx.stroke();
+    ctx.fillText('— ROAD —',0,12); ctx.restore();
+  }
+  ctx.setLineDash([]); ctx.restore();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §25  COMPREHENSIVE LEGEND SYSTEM
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function buildLegend() {
+  const div = document.getElementById('legendDiv');
+
+  // Section A: Room types
+  const roomItems = [...APP.legendUsed]
+    .filter(k => !k.startsWith('_'))
+    .map(name => {
+      const p = pal(name);
+      return `<div class="legend-item">
+        <div class="legend-swatch" style="background:${p.f};border:1px solid ${p.b}"></div>
+        ${name}
+      </div>`;
+    }).join('');
+
+  // Section B: Symbols
+  const symbolDefs = {
+    '_gate':    { label:'Main Gate', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" fill="#FAFAFA" stroke="#1a1a2e" stroke-width="1"/><rect x="1" y="1" width="2" height="12" fill="#1a1a2e"/><rect x="11" y="1" width="2" height="12" fill="#1a1a2e"/></svg>` },
+    '_door':    { label:'Internal Door', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><line x1="2" y1="7" x2="9" y2="7" stroke="#1a1a2e" stroke-width="1.5"/><path d="M2,7 A7,7 0 0,1 9,0" stroke="#1a1a2e" stroke-width="0.8" fill="none" stroke-dasharray="3,2"/></svg>` },
+    '_window':  { label:'Window', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="4" width="12" height="6" fill="#FAFAFA" stroke="#2255aa" stroke-width="0.8"/><line x1="1" y1="7" x2="13" y2="7" stroke="#2255aa" stroke-width="1"/></svg>` },
+    '_vent':    { label:'Ventilator', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="4" width="10" height="6" fill="#c8ddf0" stroke="#4488aa" stroke-width="0.8"/><line x1="2" y1="7" x2="12" y2="7" stroke="#4488aa" stroke-width="1" stroke-dasharray="2,2"/></svg>` },
+    '_stair':   { label:'Staircase (UP)', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" fill="#deded6" stroke="#808888" stroke-width="0.6"/><line x1="7" y1="2" x2="7" y2="12" stroke="#334" stroke-width="1"/><polygon points="4,5 7,2 10,5" fill="#334"/></svg>` },
+    '_bed':     { label:'Bed', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="2" width="12" height="10" fill="#fff" stroke="#999" stroke-width="0.8"/><rect x="1" y="2" width="12" height="3" fill="#e0dbd0" stroke="#999" stroke-width="0.6"/></svg>` },
+    '_wardrobe':{ label:'Wardrobe', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" fill="#d8d4cc" stroke="#888" stroke-width="0.8"/><line x1="7" y1="1" x2="7" y2="13" stroke="#aaa" stroke-width="0.7"/></svg>` },
+    '_sofa':    { label:'Sofa / Living', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="5" width="12" height="8" fill="#e4e0d4" stroke="#999" stroke-width="0.8"/><rect x="1" y="5" width="12" height="3" fill="#dad6ca" stroke="#999" stroke-width="0.6"/></svg>` },
+    '_tv':      { label:'TV Wall', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="4" width="10" height="6" fill="#1a1a2e" stroke="#999" stroke-width="0.8"/></svg>` },
+    '_dining':  { label:'Dining Table', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="3" y="3" width="8" height="8" fill="#f8f4ec" stroke="#a09060" stroke-width="1"/></svg>` },
+    '_kPlatform':{ label:'Kitchen Counter', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="5" fill="#d4cfc4" stroke="#888" stroke-width="0.8"/><rect x="9" y="1" width="4" height="12" fill="#d4cfc4" stroke="#888" stroke-width="0.8"/></svg>` },
+    '_sink':    { label:'Kitchen Sink', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" fill="#b8d8ec" stroke="#5888a8" stroke-width="0.9"/><circle cx="7" cy="7" r="2.5" stroke="#446" stroke-width="0.7" fill="none"/></svg>` },
+    '_cooktop': { label:'Cooktop (Hob)', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" fill="#d4cfc4" stroke="#888" stroke-width="0.8"/><circle cx="4" cy="4" r="2" fill="#888"/><circle cx="10" cy="4" r="2" fill="#888"/><circle cx="4" cy="10" r="2" fill="#888"/><circle cx="10" cy="10" r="2" fill="#888"/></svg>` },
+    '_fridge':  { label:'Refrigerator', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="1" width="10" height="12" fill="#e8e8e4" stroke="#8898a8" stroke-width="0.9"/><line x1="7" y1="1" x2="7" y2="13" stroke="#aaa" stroke-width="0.6"/></svg>` },
+    '_toilet':  { label:'WC / Toilet', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="1" width="10" height="4" fill="#c8ddef" stroke="#5888b0" stroke-width="0.8"/><ellipse cx="7" cy="10" rx="4" ry="3.5" fill="#fff" stroke="#5888b0" stroke-width="0.8"/></svg>` },
+    '_basin':   { label:'Wash Basin', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="3" width="10" height="8" fill="#fff" stroke="#5888b0" stroke-width="0.9"/><ellipse cx="7" cy="7" rx="3" ry="2.5" stroke="#5888b0" stroke-width="0.7" fill="none"/></svg>` },
+    '_shower':  { label:'Shower Area', swatch: `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" fill="none" stroke="rgba(80,140,200,0.5)" stroke-width="1" stroke-dasharray="3,2"/><circle cx="7" cy="7" r="3" stroke="rgba(80,140,200,0.6)" stroke-width="0.8" fill="none"/></svg>` },
+  };
+
+  // Structural legend
+  const structItems = [
+    `<div class="legend-item"><div class="legend-swatch" style="background:#1a1a2e;border:none"></div>Outer Wall (9")</div>`,
+    `<div class="legend-item"><div class="legend-swatch" style="background:#1e2235;border:none"></div>Partition Wall (5")</div>`,
+    `<div class="legend-item"><div class="legend-swatch" style="background:repeating-linear-gradient(45deg,#E0E8F0 0px,#E0E8F0 2px,#6878A0 2px,#6878A0 4px);border:1px solid #6878A0"></div>Plumbing Shaft</div>`,
+    `<div class="legend-item"><div class="legend-swatch" style="background:repeating-linear-gradient(45deg,rgba(60,100,40,0.1) 0px,rgba(60,100,40,0.1) 3px,transparent 3px,transparent 8px);border:1px solid #80B030"></div>Open Area / Hatch</div>`,
+  ];
+
+  const symbolItems = [...APP.legendUsed]
+    .filter(k => k.startsWith('_') && symbolDefs[k])
+    .map(k => `<div class="legend-item">${symbolDefs[k].swatch} ${symbolDefs[k].label}</div>`)
+    .join('');
+
+  div.innerHTML = `
+    <div style="width:100%;margin-bottom:6px;font-size:10px;color:var(--accent);font-family:'Space Mono',monospace;letter-spacing:1px;text-transform:uppercase">Room Types</div>
+    ${roomItems}
+    <div style="width:100%;margin:8px 0 6px;font-size:10px;color:var(--accent);font-family:'Space Mono',monospace;letter-spacing:1px;text-transform:uppercase">Structure</div>
+    ${structItems.join('')}
+    <div style="width:100%;margin:8px 0 6px;font-size:10px;color:var(--accent);font-family:'Space Mono',monospace;letter-spacing:1px;text-transform:uppercase">Symbols & Fixtures</div>
+    ${symbolItems}`;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §26  FLOOR SWITCHER + ROOM TABLE + VASTU REPORT + SUMMARY
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function buildFloorSwitcher() {
+  const sw = document.getElementById('floorSwitcher');
+  sw.innerHTML = '';
+  APP.floors.forEach((fl,i) => {
+    const btn = document.createElement('button');
+    btn.className = `btn-sm floor-btn${i===0?' active':''}`;
+    btn.textContent = fl.name;
+    btn.onclick = () => renderFloor(i);
+    sw.appendChild(btn);
+  });
+}
+
+function buildRoomTable() {
+  const tbody = document.getElementById('roomTableBody');
+  tbody.innerHTML = '';
+  APP.floors.forEach(fl => {
+    fl.rooms.forEach(r => {
+      const dir     = compassOf(r, APP.plotW, APP.plotH);
+      const ideal   = VASTU.direction[r.name] || '—';
+      const isOk    = ideal==='—' || ideal===dir || ideal.includes(dir[0]);
+      const area    = (r.w*r.h).toFixed(0);
+      const valid   = validateFurniture(r);
+      tbody.innerHTML += `<tr>
+        <td><strong>${r.name}</strong><br><small style="color:var(--muted)">${fl.name}</small></td>
+        <td style="font-family:monospace;font-size:12px">${VASTU.zone(r.name)}</td>
+        <td style="font-family:monospace;font-size:12px">${dir}</td>
+        <td>${ftIn(r.w)} × ${ftIn(r.h)}</td>
+        <td>${area}</td>
+        <td><span class="vastu-badge ${isOk&&valid?'vastu-ok':isOk||valid?'vastu-warn':'vastu-bad'}">${isOk&&valid?'✓ Good':isOk?'⚠ Small':'⚠ Review'}</span></td>
+      </tr>`;
+    });
+  });
+}
+
+function buildVastuReport(adjData) {
+  const score = APP.vastuScore;
+  const circ  = 2*Math.PI*38;
+  const dash  = (score/100)*circ;
+  const col   = score>=80?'#4caf82':score>=60?'#e07b3f':'#d94f4f';
+  const label = score>=80?'Excellent Vastu':score>=60?'Good Vastu':'Needs Review';
+
+  document.getElementById('vastuScoreCard').innerHTML = `
+    <div class="ring-wrap">
+      <svg width="90" height="90" viewBox="0 0 90 90">
+        <circle cx="45" cy="45" r="38" stroke="rgba(201,168,76,0.1)" stroke-width="6" fill="none"/>
+        <circle cx="45" cy="45" r="38" stroke="${col}" stroke-width="6" fill="none"
+          stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-linecap="round"/>
+      </svg>
+      <div class="ring-score">${score}</div>
+    </div>
+    <div class="score-details">
+      <h3>${label}</h3>
+      <p>${adjData?.notes || 'Vastu compliance analysis complete.'}</p>
+    </div>`;
+
+  const rules = [];
+  function chk(name, dirs, desc) {
+    const room = APP.floors.flatMap(f=>f.rooms).find(r=>r.name===name);
+    if (!room) return;
+    const d = compassOf(room, APP.plotW, APP.plotH);
+    const ok = dirs.some(di => d.includes(di));
+    rules.push({ status:ok?'ok':'warn', icon:ok?'✅':'⚠️',
+      title:`${name} — ${d}`, desc:` · Ideal: ${dirs.join('/')}. ${desc}` });
+  }
+  chk('Master Bedroom',['SW','S','W'],'SW is most auspicious for master suite.');
+  chk('Kitchen',['SE','E'],'SE (Agneya) governs the fire element.');
+  chk('Puja Room',['NE','N','E'],'NE (Ishanya) is the sacred divine corner.');
+  chk('Living Room',['N','NE','E'],'North-facing living enhances positive energy flow.');
+  chk('Study Room',['W','SW'],'West direction supports concentration and learning.');
+  chk('Dining Room',['W','E'],'West dining supports digestion and family bonding.');
+
+  const baths = APP.floors.flatMap(f=>f.rooms).filter(r=>
+    r.name.toLowerCase().includes('bath')||r.name.toLowerCase().includes('toilet')||r.name.toLowerCase().includes('powder'));
+  baths.forEach(b=>{
+    const d=compassOf(b,APP.plotW,APP.plotH);
+    const ok=['NW','SE','W'].some(di=>d.includes(di));
+    rules.push({ status:ok?'ok':'bad', icon:ok?'✅':'❌',
+      title:`${b.name} — ${d}`, desc:' · Avoid NE (sacred) and SW (master). Prefer NW/SE.' });
+  });
+
+  rules.push({ status:'ok', icon:'📐',
+    title:`Plot ${ftIn(APP.plotW)} × ${ftIn(APP.plotH)} — ${APP.facing} Facing`,
+    desc:' · Brahmasthan (centre) must remain unobstructed. Central courtyard preferred.' });
+
+  document.getElementById('vastuRules').innerHTML = rules.map(r =>
+    `<div class="vastu-rule ${r.status}">
+      <div class="rule-icon">${r.icon}</div>
+      <div class="rule-text"><strong>${r.title}</strong>${r.desc}</div>
+    </div>`).join('');
+}
+
+function buildSummary(plotW, plotH, floorsVal, bedCount, familySize) {
+  const totalA = (plotW*plotH*APP.floors.length).toFixed(0);
+  const builtA = APP.floors.flatMap(f=>f.rooms).reduce((s,r)=>s+r.w*r.h,0).toFixed(0);
+  const roomC  = APP.floors.flatMap(f=>f.rooms).length;
+  const bathC  = APP.floors.flatMap(f=>f.rooms).filter(r=>
+    r.name.toLowerCase().includes('bath')||r.name.toLowerCase().includes('toilet')||r.name.toLowerCase().includes('powder')).length;
+  const dtSpec = STD.diningTable(familySize);
+
+  document.getElementById('summaryGrid').innerHTML = `
+    <div class="summary-card"><div class="val">${plotW}×${plotH}</div><div class="lbl">Plot Size (ft)</div></div>
+    <div class="summary-card"><div class="val">${totalA}</div><div class="lbl">Total Area (sq ft)</div></div>
+    <div class="summary-card"><div class="val">${builtA}</div><div class="lbl">Built-up Area</div></div>
+    <div class="summary-card"><div class="val">${APP.floors.length}</div><div class="lbl">Floors</div></div>
+    <div class="summary-card"><div class="val">${bedCount}</div><div class="lbl">Bedrooms</div></div>
+    <div class="summary-card"><div class="val">${bathC}</div><div class="lbl">Bathrooms</div></div>
+    <div class="summary-card"><div class="val">${roomC}</div><div class="lbl">Total Spaces</div></div>
+    <div class="summary-card"><div class="val">${familySize}</div><div class="lbl">Family Members</div></div>
+    <div class="summary-card"><div class="val">${APP.vastuScore}</div><div class="lbl">Vastu Score</div></div>
+    <div class="summary-card"><div class="val">${dtSpec.seats}</div><div class="lbl">Dining Seats</div></div>`;
+
+  document.getElementById('notesSection').innerHTML = `
+    <div class="note-box"><strong>Structural Standards</strong>
+      Outer walls: 9" (0.75 ft) RCC/brick. Internal partitions: 5" (0.42 ft) brick.
+      Plumbing shaft (PS) stacked across all floors at SE corner. Min corridor: 3.5 ft.
+    </div>
+    <div class="note-box"><strong>Furniture Validation</strong>
+      Dining table: ${dtSpec.seats}-seater (${dtSpec.tw}×${dtSpec.th} ft) + ${dtSpec.cl} ft chair clearance for family of ${familySize}.
+      Master bedroom: king/queen bed + wardrobe + 3 ft circulation. Bathrooms: basin + WC + shower validated.
+    </div>
+    <div class="note-box"><strong>Kitchen Work Triangle</strong>
+      Fridge (entry side) → Sink (external wall / shaft wall) → Cooktop.
+      L-shaped platform layout. Window above sink preferred for ventilation.
+    </div>
+    <div class="note-box"><strong>Civil Engineering Notes</strong>
+      Plot coverage ≤ 60%. FAR: verify municipal regulations. Setback: 5 ft front, 3 ft side (check bylaws).
+      Staircase: S/SW quadrant per Vastu. Toilet count: ${bathC} for ${bedCount}BHK (standard: ${STD.toiletCount[bedCount]||bathC}).
+    </div>`;
+}
+
+function updateScaleBar(scale) {
+  const m = { 100:'10 ft', 50:'5 ft', 25:'2.5 ft' };
+  document.getElementById('scaleLabel').textContent = m[scale]||'5 ft';
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §27  ZOOM + PDF EXPORT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function zoomIn()    { APP.zoom = Math.min(APP.zoom*1.25,4); applyZoom(); }
+function zoomOut()   { APP.zoom = Math.max(APP.zoom/1.25,0.35); applyZoom(); }
+function resetZoom() { APP.zoom=1; applyZoom(); }
+function applyZoom() {
+  const c=document.getElementById('planCanvas');
+  c.style.transform=`scale(${APP.zoom})`;
+  c.style.transformOrigin='top left';
+}
+
+function exportPDF() {
+  try {
+    const { jsPDF } = window.jspdf;
+    const canvas = document.getElementById('planCanvas');
+    const img    = canvas.toDataURL('image/png',1.0);
+    const pdf    = new jsPDF({ orientation:'landscape', unit:'mm', format:'a3' });
+    const pw=420-20, ph=(canvas.height/canvas.width)*pw;
+    pdf.setFillColor(8,17,30); pdf.rect(0,0,420,297,'F');
+    pdf.addImage(img,'PNG',10,(297-ph)/2,pw,ph);
+    pdf.setTextColor(201,168,76); pdf.setFontSize(8);
+    pdf.text(`VastuPlan AI v4.0  ·  ${APP.floors[APP.currentFloor]?.name}  ·  Plot ${APP.plotW}×${APP.plotH} ft  ·  ${APP.facing} Facing  ·  Vastu Score: ${APP.vastuScore}`, 10, 292);
+    pdf.save(`VastuPlan_${APP.floors[APP.currentFloor]?.name?.replace(/\s/g,'_')}.pdf`);
+    dlog('PDF exported ✓','ok');
+  } catch(e) {
+    dlog(`PDF error: ${e.message}`,'err');
+    alert('PDF export failed. Try right-clicking canvas → Save image.');
+  }
+}
+</script>
+</body>
+</html>
